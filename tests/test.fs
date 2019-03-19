@@ -4,8 +4,6 @@ open Hopac
 open Expecto
 open Util
 
-Util.BoolsToBytes
-
 let tests =
   testList "Util" [
       testList "BoolsToBytes" [
@@ -232,6 +230,24 @@ let tests =
           Expect.equal r [8uy; 1uy; 1uy; 2uy] "[264us; 513us] should yield [8uy; 1uy; 1uy; 2uy]"
         }           
       ]      
+      testList "swapU16s"[
+        test "[1uy; 0uy]" {
+          let r = [1uy; 0uy] |> swapU16s
+          Expect.equal r [0uy; 1uy] "should yield [0uy; 1uy]"
+        }
+        test "[0uy; 1uy]" {
+          let r = [0uy; 1uy] |> swapU16s
+          Expect.equal r [1uy; 0uy] "should yield [1uy; 0uy]"
+        }        
+        test "[1uy; 2uy; 3uy; 4uy]" {
+          let r = [1uy; 2uy; 3uy; 4uy] |> swapU16s
+          Expect.equal r [2uy; 1uy; 4uy; 3uy] "should yield [2uy; 1uy; 4uy; 3uy]"
+        }
+        test "[1uy; 2uy; 3uy; 4uy; 5uy; 6uy]" {
+          let r = [1uy; 2uy; 3uy; 4uy; 5uy; 6uy] |> swapU16s
+          Expect.equal r [2uy; 1uy; 4uy; 3uy; 6uy; 5uy] "should yield [2uy; 1uy; 4uy; 3uy; 6uy; 5uy]"
+        }           
+      ]            
   ]
 
 

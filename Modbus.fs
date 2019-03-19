@@ -89,22 +89,15 @@ let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Jo
   job {
     let buff : Memory<byte> = Memory(Array.zeroCreate(300))
     let! len = handle.ReceiveAsync(buff, SocketFlags.None, CancellationToken(false)).AsTask()
-    printfn "Length: %A, buff: %A, connected: %A" len buff handle.Connected
     match handle.Connected && len <> 0 with 
       | true -> 
         let frame = buff.Slice(0, len).ToArray()
-        printfn "\n\n\n\nframe: %A" frame
         let (pdu, mbap) = validateMbap slaveId frame 
-        printfn "mbap - pdu: %A - %A" mbap pdu
         let request = validatePdu pdu
-        printfn "request: %A" request
         let response = request |> mapReqToRes funcs
-        printfn "response %A" response
         let resPdu = response.serialize()
-        printfn "out Pdu: %A" resPdu
         let rawRes = Mbap.wrapPdu mbap resPdu |> List.toArray 
         let outBuff = rawRes |> ReadOnlyMemory
-        printfn "%A" rawRes 
         let! _ = handle.SendAsync(outBuff, SocketFlags.None, CancellationToken()).AsTask()
         do! handleReceive slaveId handle funcs
       | false -> 

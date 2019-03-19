@@ -145,7 +145,7 @@ type WriteRegRequest =
     let (fc :: addrH :: addrL :: valueH :: valueL :: []) = pdu // throw exception if not an exact match
     {
       Offset = [addrL; addrH] |> tU16
-      Value = [valueL; valueH] |> tU16
+      Value = [valueH; valueL] |> tU16
     }
 
 type WriteDosRequest = 
@@ -218,8 +218,8 @@ type ReadHRegResponse =
   }
   member x.serialize () : byte list = 
     let count = x.Values |> List.length |> (*)2 |> byte
-    let data = x.Values |> Util.U16sToBytes
-    [3uy; count] @ data    
+    let data = x.Values |> Util.U16sToBytes 
+    [3uy; count] @ data
 
 type ReadIRegResponse = 
   {
@@ -227,7 +227,7 @@ type ReadIRegResponse =
   }
   member x.serialize () : byte list = 
     let count = x.Values |> List.length |> (*)2 |> byte
-    let data = x.Values |> Util.U16sToBytes
+    let data = x.Values |> Util.U16sToBytes |> Util.swapU16s
     [4uy; count] @ data    
 
 
@@ -248,7 +248,7 @@ type WriteRegResponse =
     Value: UInt16
   }
   member x.serialize () : byte list = 
-    let oBytes = x.Offset |> Util.U16ToBytes
+    let oBytes = x.Offset |> Util.U16ToBytes |> List.rev
     let oVal = x.Value |> Util.U16ToBytes
     [6uy] @ oBytes @ oVal
 
@@ -268,8 +268,8 @@ type WriteRegsResponse =
     Count: UInt16
   }
   member x.serialize () : byte list = 
-    let oOffset = x.Offset |> Util.U16ToBytes
-    let oCount = x.Count |> Util.U16ToBytes
+    let oOffset = x.Offset |> Util.U16ToBytes |> List.rev
+    let oCount = x.Count |> Util.U16ToBytes |> List.rev
     [16uy] @ oOffset @ oCount   
 
   static member TryFromByte (x : byte) : Result<ErrorCode,byte> =

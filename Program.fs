@@ -3,7 +3,7 @@
 open Hopac
 open Hopac.Infixes
 open ModbusTypes
-open Test
+open System
 
 [<EntryPoint>]
 let main argv =
@@ -17,10 +17,43 @@ let main argv =
     |> Option.defaultValue "tcp://127.0.0.1:5502"
     |> ModbusTypes.ModbusServerConf.TryParse
 
-  let mutable dis = [0..1999] |> List.map(fun x -> x, false) |> Map.ofList
-  let mutable dos = [0..1999] |> List.map(fun x -> x, false) |> Map.ofList
-  let mutable hReg = [0.1999] |> List.map(fun x -> x, 0us) |> Map.ofList
-  let mutable iReg = [0.1999] |> List.map(fun x -> x, 0us) |> Map.ofList
+  let mutable dis = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
+  let mutable dos = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
+  let mutable hReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
+  let mutable iReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
+
+  let readHRegFunc (x : ReadHRegRequest) : ReadHRegResponse = 
+    let b = x.Offset |> int
+    let c = x.Quantity |> int
+    let e = b + c - 1
+    let values : UInt16 list = [b..e] |> List.map (fun x -> Map.find x hReg )
+    {
+      Values = values
+    }
+
+  let writeRegFunc (x : WriteRegRequest) : WriteRegResponse = 
+    let o = x.Offset |> int
+
+    hReg
+    |> Map.add o x.Value
+    |> fun y -> hReg <- y
+
+    {
+      Offset = x.Offset
+      Value = hReg |> Map.find o
+    }
+
+  let writeRegsFunc (x : WriteRegsRequest) : WriteRegsResponse = 
+     let o = x.Offset |> int
+     let c = x.Quantity |> int
+     let vals = x.Values
+     [0..(c-1)]
+     |> List.map(fun x -> hReg |> Map.add (o + x) (vals |> List.item x) |> fun x -> hReg <- x)
+     |> ignore
+     {
+       Count = x.Quantity
+       Offset = x.Offset
+     }
 
   let readDOFunc (x : ReadDoRequest) : ReadDoResponse = 
     let offset = x.Offset |> int
@@ -57,12 +90,12 @@ let main argv =
     {
       ReadDOFunc    = readDOFunc
       ReadDIFunc    = ModFuncs.defaultSuccesses.ReadDIFunc
-      ReadHRegFunc  = ModFuncs.defaultSuccesses.ReadHRegFunc
+      ReadHRegFunc  = readHRegFunc
       ReadIRegFunc  = ModFuncs.defaultSuccesses.ReadIRegFunc
       WriteDOFunc   = writeDOFunc
-      WriteRegFunc  = ModFuncs.defaultSuccesses.WriteRegFunc
+      WriteRegFunc  = writeRegFunc
       WriteDOsFunc  = writeDOsFunc
-      WriteRegsFunc = ModFuncs.defaultSuccesses.WriteRegsFunc
+      WriteRegsFunc = writeRegsFunc
       ModErrorFunc  = ModFuncs.defaultSuccesses.ModErrorFunc
     }
   let conf = 

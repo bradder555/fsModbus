@@ -62,3 +62,13 @@ let U16sToBytes : UInt16 list -> byte list =
 let BoolToUint16 : bool -> UInt16 = 
   function | false -> 0us | true -> 255us <<< 8
   
+let swapU16s (x : byte list) : byte list = 
+  let len = (x |> List.length) / 2
+  [0..len-1]
+  |> List.map (
+       fun y -> 
+          let a = x |> List.item (y * 2 )
+          let b = x |> List.item (y * 2 + 1)
+          a,b
+       )
+  |> List.fold (fun a (b,c) -> a @ [c] @ [b]  ) []
