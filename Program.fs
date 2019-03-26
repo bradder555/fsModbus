@@ -115,7 +115,7 @@ let main argv =
   let tests =
     match shouldTest with
     | true -> 
-      Test.runTests
+      Tests.runTests
     | false -> 
       0 |> Job.result
 

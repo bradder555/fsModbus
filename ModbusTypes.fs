@@ -202,6 +202,12 @@ type ReadDoResponse =
     let status = x.Status |> Util.BoolsToBytes
     let c = status |> List.length |> byte
     [1uy; c] @ status
+  
+  static member tryParse (pdu : PDU) : ReadDoResponse = 
+    let (fc :: count :: data) = pdu // throw exception if not an exact match
+    {
+      Status = data |> bytesToBool
+    }
 
 type ReadDiResponse = 
   {
@@ -212,6 +218,12 @@ type ReadDiResponse =
     let c = status |> List.length |> byte
     [2uy; c] @ status  
 
+  static member tryParse (pdu : PDU) : ReadDiResponse = 
+    let (fc :: count :: data) = pdu // throw exception if not an exact match
+    {
+      Status = data |> bytesToBool
+    }    
+
 type ReadHRegResponse = 
   {
     Values : UInt16 list
@@ -221,6 +233,13 @@ type ReadHRegResponse =
     let data = x.Values |> Util.U16sToBytes 
     [3uy; count] @ data
 
+  static member tryParse (pdu : PDU) : ReadHRegResponse = 
+    let (fc :: count :: data) = pdu // throw exception if not an exact match
+    {
+      Values = data |> bytesToUint16
+    }
+    
+
 type ReadIRegResponse = 
   {
     Values : UInt16 list
@@ -228,7 +247,13 @@ type ReadIRegResponse =
   member x.serialize () : byte list = 
     let count = x.Values |> List.length |> (*)2 |> byte
     let data = x.Values |> Util.U16sToBytes |> Util.swapU16s
-    [4uy; count] @ data    
+    [4uy; count] @ data
+
+  static member tryParse (pdu : PDU) : ReadIRegResponse = 
+    let (fc :: count :: data ) = pdu // throw exception if not an exact match
+    {
+      Values = data |> bytesToUint16
+    }    
 
 
 type WriteDoResponse = 
@@ -240,6 +265,13 @@ type WriteDoResponse =
     let oBytes = x.Offset |> Util.U16ToBytes
     let oVal = x.Value |> Util.BoolToUint16 |> Util.U16ToBytes
     [5uy] @ oBytes @ oVal
+
+  static member tryParse (pdu : PDU) : WriteDoResponse = 
+    let (fc :: offsetH :: offsetL :: valH :: valL) = pdu // throw exception if not an exact match
+    {
+      Offset = [offsetH; offsetL] |> tU16
+      Value = valH = 255uy
+    }        
 
 
 type WriteRegResponse = 
@@ -361,7 +393,7 @@ type ModFuncs =
       |> fun x -> 1us :: (x |> List.tail)
 
     let readDoFunc (x : ReadDoRequest) : ReadDoResponse = 
-      {
+      { 
         Status = expected x.Quantity
       }
     
