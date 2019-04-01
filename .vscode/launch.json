@@ -4,13 +4,13 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-
+    
         {
             "name": ".NET Core Launch (console)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Example/bin/Debug/netcoreapp2.2/FsModbus.Example.dll",
+            "program": "${workspaceFolder}/bin/Debug/netcoreapp2.2/dotnetcore.dll",
             "args": [],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
@@ -22,7 +22,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Example/bin/Debug/netcoreapp2.2/FsModbus.Example.dll",
+            "program": "${workspaceFolder}/bin/Debug/netcoreapp2.2/dotnetcore.dll",
             "args": ["test"],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
@@ -33,7 +33,7 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Example/bin/Debug/netcoreapp2.2/FsModbus.Example.dll",
+            "program": "${workspaceFolder}/bin/Debug/netcoreapp2.2/dotnetcore.dll",
             "args": [],
             "cwd": "${workspaceFolder}",
             "stopAtEntry": false,
