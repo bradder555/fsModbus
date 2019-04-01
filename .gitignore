@@ -1,4 +1,6 @@
-bin/*
-obj/*
+Example/bin/**
+Example/obj/**
+Library/bin/**
+Library/obj/**
 Docker*/
 Docker*
