@@ -17,5 +17,5 @@ let runTests =
     // i run sequenced simply so the output summary is in order,
     // this means tests will run slightly longer, but i doubt it will be 
     // bothersome
-    return runTestsWithArgs defaultConfig [|"--summary"; "--sequenced"|] tests
+    return runTestsWithArgs defaultConfig [|"--summary"; "--sequenced";|] tests
   }

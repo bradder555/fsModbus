@@ -35,38 +35,71 @@ let validateMbap (slaveId : byte) (frame : byte []) : PDU * Mbap =
 
   Pdu, mbap
 
+let modError = 
+  {
+    FunctionCode = Invalid 
+    ExceptionCode = IllegalFunction 
+  } |> ModErrorReq
 
-let validatePdu (pdu : byte list) :Request = 
+let validatePdu (pdu : byte list) : Request = 
   let (Fc :: OffsetH :: OffsetL :: Rem) = pdu
   let functionCode = Fc |> ModbusTypes.FunctionCode.TryFromByte  
   match functionCode with
   | Ok functionCode -> 
     match functionCode with
-    | FunctionCode.Invalid -> 
-      {
-        FunctionCode = Invalid 
-        ErrorCode = IllegalFunction 
-      } |> ModErrorReq
+    | FunctionCode.Invalid -> modError
     | FunctionCode.ReadDO -> 
-      ReadDoRequest.tryParse pdu |> ReadDOReq 
+      ReadDoRequest.TryParse pdu 
+      |> function 
+         | Ok x -> x |> ReadDOReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.ReadDI ->
-      ReadDiRequest.tryParse pdu |> ReadDIReq 
+      ReadDiRequest.TryParse pdu
+      |> function 
+         | Ok x -> x |> ReadDIReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.ReadHReg ->
-      ReadHRegRequest.tryParse pdu |> ReadHRegReq 
+      ReadHRegRequest.TryParse pdu 
+      |> function 
+         | Ok x -> x |> ReadHRegReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.ReadIReg -> 
-      ReadIRegRequest.tryParse pdu |> ReadIRegReq 
+      ReadIRegRequest.TryParse pdu
+      |> function 
+         | Ok x -> x |> ReadIRegReq 
+         | Error (p,e) -> modError 
+
     | FunctionCode.WriteDO ->
-      WriteDoRequest.tryParse pdu |> WriteDOReq 
+      WriteDoRequest.TryParse pdu 
+      |> function 
+         | Ok x -> x |> WriteDOReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.WriteReg -> 
-      WriteRegRequest.tryParse pdu |> WriteRegReq 
+      WriteRegRequest.TryParse pdu
+      |> function 
+         | Ok x -> x |> WriteRegReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.WriteDOs ->
-      WriteDosRequest.tryParse pdu |> WriteDOsReq 
+      WriteDosRequest.TryParse pdu
+      |> function
+         | Ok x -> x |> WriteDOsReq 
+         | Error (p,e) -> modError
+
     | FunctionCode.WriteRegs -> 
-      WriteRegsRequest.tryParse pdu |> WriteRegsReq 
+      WriteRegsRequest.TryParse pdu
+      |> function 
+         | Ok x -> x |> WriteRegsReq 
+         | Error (p,e) -> modError
+
   | Error _ -> 
     {
       FunctionCode = Invalid
-      ErrorCode = IllegalFunction 
+      ExceptionCode = IllegalFunction 
     } |> ModErrorReq
 
 
@@ -95,7 +128,7 @@ let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Jo
         let (pdu, mbap) = validateMbap slaveId frame 
         let request = validatePdu pdu
         let response = request |> mapReqToRes funcs
-        let resPdu = response.serialize()
+        let resPdu = response.Serialize()
         let rawRes = Mbap.wrapPdu mbap resPdu |> List.toArray 
         let outBuff = rawRes |> ReadOnlyMemory
         let! _ = handle.SendAsync(outBuff, SocketFlags.None, CancellationToken()).AsTask()
