@@ -5,7 +5,7 @@
     "tasks": [
         {
             "label": "build",
-            "command": "dotnet build FsModbus.sln",
+            "command": "dotnet build",
             "type": "shell",
             "group": "build",
             "presentation": {

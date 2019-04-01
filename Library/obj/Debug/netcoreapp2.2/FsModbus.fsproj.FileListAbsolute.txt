@@ -1,8 +1,0 @@
-/home/brad/Docker/dotnetcore/Library/obj/Debug/netcoreapp2.2/FsModbus.fsprojAssemblyReference.cache
-/home/brad/Docker/dotnetcore/Library/obj/Debug/netcoreapp2.2/FsModbus.AssemblyInfoInputs.cache
-/home/brad/Docker/dotnetcore/Library/obj/Debug/netcoreapp2.2/FsModbus.AssemblyInfo.fs
-/home/brad/Docker/dotnetcore/Library/bin/Debug/netcoreapp2.2/FsModbus.deps.json
-/home/brad/Docker/dotnetcore/Library/bin/Debug/netcoreapp2.2/FsModbus.dll
-/home/brad/Docker/dotnetcore/Library/bin/Debug/netcoreapp2.2/FsModbus.pdb
-/home/brad/Docker/dotnetcore/Library/obj/Debug/netcoreapp2.2/FsModbus.dll
-/home/brad/Docker/dotnetcore/Library/obj/Debug/netcoreapp2.2/FsModbus.pdb
