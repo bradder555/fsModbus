@@ -766,5 +766,28 @@ let tests =
 
         ]
 
+        testList "ModError" [
+            // the client needs to keep track
+            // of the transaction, the offset and requested quantity
+            // so much complexity to save a few bytes!
+            test "valid" {
+                let t : ModError = {
+                    FunctionCode = FunctionCode.ReadDO
+                    ExceptionCode = ExceptionCode.IllegalDataAddress
+                }
+
+                let expected =
+                  [
+                    (0x80uy + 0x01uy);
+                    0x02uy;
+                  ]
+
+                Expect.equal
+                  (t.Serialize ())
+                  expected
+                  "[0x81uy; 0x02uy;]"
+            }
+
+        ]
 
     ]

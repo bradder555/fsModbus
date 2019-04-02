@@ -35,72 +35,68 @@ let validateMbap (slaveId : byte) (frame : byte []) : PDU * Mbap =
 
   Pdu, mbap
 
-let modError =
+let modError fc =
   {
-    FunctionCode = Invalid
+    FunctionCode = fc
     ExceptionCode = IllegalFunction
   } |> ModErrorReq
 
-let validatePdu (pdu : byte list) : Request =
+let validatePdu (pdu : PDU) : Result<Request, PDU> =
   let (Fc :: OffsetH :: OffsetL :: Rem) = pdu
   let functionCode = Fc |> ModbusTypes.FunctionCode.TryFromByte
   match functionCode with
   | Ok functionCode ->
     match functionCode with
-    | FunctionCode.Invalid -> modError
     | FunctionCode.ReadDO ->
       ReadDoRequest.TryParse pdu
       |> function
-         | Ok x -> x |> ReadDOReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> ReadDOReq |> Ok
+         | Error (p,e) -> modError FunctionCode.ReadDO |> Ok
 
     | FunctionCode.ReadDI ->
       ReadDiRequest.TryParse pdu
       |> function
-         | Ok x -> x |> ReadDIReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> ReadDIReq |> Ok
+         | Error (p,e) -> modError FunctionCode.ReadDI |> Ok
 
     | FunctionCode.ReadHReg ->
       ReadHRegRequest.TryParse pdu
       |> function
-         | Ok x -> x |> ReadHRegReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> ReadHRegReq |> Ok
+         | Error (p,e) -> modError FunctionCode.ReadHReg |> Ok
 
     | FunctionCode.ReadIReg ->
       ReadIRegRequest.TryParse pdu
       |> function
-         | Ok x -> x |> ReadIRegReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> ReadIRegReq |> Ok
+         | Error (p,e) -> modError FunctionCode.ReadIReg |> Ok
 
     | FunctionCode.WriteDO ->
       WriteDoRequest.TryParse pdu
       |> function
-         | Ok x -> x |> WriteDOReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> WriteDOReq |> Ok
+         | Error (p,e) -> modError FunctionCode.WriteDO |> Ok
 
     | FunctionCode.WriteReg ->
       WriteRegRequest.TryParse pdu
       |> function
-         | Ok x -> x |> WriteRegReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> WriteRegReq |> Ok
+         | Error (p,e) -> modError FunctionCode.WriteReg |> Ok
 
     | FunctionCode.WriteDOs ->
       WriteDosRequest.TryParse pdu
       |> function
-         | Ok x -> x |> WriteDOsReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> WriteDOsReq |> Ok
+         | Error (p,e) -> modError FunctionCode.WriteDOs |> Ok
 
     | FunctionCode.WriteRegs ->
       WriteRegsRequest.TryParse pdu
       |> function
-         | Ok x -> x |> WriteRegsReq
-         | Error (p,e) -> modError
+         | Ok x -> x |> WriteRegsReq |> Ok
+         | Error (p,e) -> modError FunctionCode.WriteRegs |> Ok
 
   | Error _ ->
-    {
-      FunctionCode = Invalid
-      ExceptionCode = IllegalFunction
-    } |> ModErrorReq
+    pdu |> Error
 
 
 let mapReqToRes (funcs : ModFuncs) (req : Request) : Response =
@@ -127,13 +123,17 @@ let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Jo
         let frame = buff.Slice(0, len).ToArray()
         let (pdu, mbap) = validateMbap slaveId frame
         let request = validatePdu pdu
-        printfn "%A" request
-        let response = request |> mapReqToRes funcs
-        let resPdu = response.Serialize()
-        let rawRes = Mbap.wrapPdu mbap resPdu |> List.toArray
-        let outBuff = rawRes |> ReadOnlyMemory
-        let! _ = handle.SendAsync(outBuff, SocketFlags.None, CancellationToken()).AsTask()
-        do! handleReceive slaveId handle funcs
+        match request with
+        | Ok r ->
+          let response = r |> mapReqToRes funcs
+          let resPdu = response.Serialize()
+          let rawRes = Mbap.wrapPdu mbap resPdu |> List.toArray
+          let outBuff = rawRes |> ReadOnlyMemory
+          let! _ = handle.SendAsync(outBuff, SocketFlags.None, CancellationToken()).AsTask()
+          do! handleReceive slaveId handle funcs
+        | Error _ ->
+          handle.Disconnect(true)
+          handle.Dispose()
       | false ->
         handle.Disconnect(true)
         handle.Dispose()
