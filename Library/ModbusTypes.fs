@@ -1,5 +1,4 @@
 module ModbusTypes
-open Expecto.CSharp
 #nowarn "25"
 
 // for my code, the head should always be the least significant
@@ -18,7 +17,6 @@ type PDU = byte list
 
 
 type FunctionCode =
-  | Invalid
   | ReadDO
   | ReadDI
   | ReadHReg
@@ -29,7 +27,6 @@ type FunctionCode =
   | WriteRegs
   member x.ToByte () : byte =
     match x with
-    | Invalid -> 0uy
     | ReadDO -> 1uy
     | ReadDI -> 2uy
     | ReadHReg -> 3uy
@@ -41,7 +38,6 @@ type FunctionCode =
 
   static member TryFromByte (x : byte) : Result<FunctionCode,byte> =
     match x with
-    | 0uy -> Ok Invalid
     | 1uy -> Ok ReadDO
     | 2uy -> Ok ReadDI
     | 3uy -> Ok ReadHReg
@@ -70,6 +66,16 @@ type ExceptionCode =
       | PathUnavailable    -> 10uy
       | DeviceFailedToRespond -> 11uy
 
+  static member TryFromByte (x : byte) : Result<ExceptionCode,byte> =
+    match x with
+    | 1uy -> Ok IllegalFunction
+    | 2uy -> Ok IllegalDataAddress
+    | 3uy -> Ok IllegalDataValue
+    | 4uy -> Ok SlaveDeviceFailure
+    | 6uy -> Ok SlaveDeviceBusy
+    | 10uy -> Ok PathUnavailable
+    | 16uy -> Ok DeviceFailedToRespond
+    | _ -> Error x
 type ModError =
   {
     FunctionCode : FunctionCode
@@ -79,6 +85,30 @@ type ModError =
     let exCode = x.FunctionCode.ToByte() + 128uy
     let erCode = x.ExceptionCode.ToByte()
     [exCode; erCode]
+
+  static member TryParse (pdu : PDU) : Result<ModError, PDU * exn> =
+    try
+      let (fc :: ec :: []) = pdu
+      let fc =
+        match fc with
+        | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy
+        | x -> x
+      let fc = FunctionCode.TryFromByte fc
+      let ec = ExceptionCode.TryFromByte ec
+      match fc,ec with
+      | Error _, Error _ ->
+        "Function code and exception code invalid" |> FormatException |> raise
+      | Error _, _ ->
+        "Function code invalid" |> FormatException |> raise
+      | _, Error _ ->
+        "Exception code invalid" |> FormatException |> raise
+      | Ok fc, Ok ec ->
+        {
+          FunctionCode = fc
+          ExceptionCode = ec
+        } |> Ok
+    with | e ->
+      (pdu, e) |> Error
 
 type ReadDoRequest =
   {
