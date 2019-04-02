@@ -91,9 +91,18 @@ type ModError =
       let (fc :: ec :: []) = pdu
       let fc =
         match fc with
-        | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy
-        | x -> x
-      let fc = FunctionCode.TryFromByte fc
+        | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy |> Ok
+        | x -> "Error flag not set" |> FormatException |> Error
+
+      let fc =
+        match fc with
+        | Ok x ->
+          FunctionCode.TryFromByte x
+          |> function
+             | Error _ -> "Unable to parse function code" |> FormatException |> Error
+             | Ok x -> x |> Ok
+        | Error x -> x |> Error
+
       let ec = ExceptionCode.TryFromByte ec
       match fc,ec with
       | Error _, Error _ ->
