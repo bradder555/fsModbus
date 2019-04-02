@@ -99,16 +99,16 @@ type ModError =
         | Ok x ->
           FunctionCode.TryFromByte x
           |> function
-             | Error _ -> "Unable to parse function code" |> FormatException |> Error
+             | Error _ -> "Function code invalid" |> FormatException |> Error
              | Ok x -> x |> Ok
         | Error x -> x |> Error
 
       let ec = ExceptionCode.TryFromByte ec
       match fc,ec with
-      | Error _, Error _ ->
-        "Function code and exception code invalid" |> FormatException |> raise
-      | Error _, _ ->
-        "Function code invalid" |> FormatException |> raise
+      | Error e1, Error _ ->
+        sprintf "%s, Exception code invalid" e1.Message |> FormatException |> raise
+      | Error e, _ ->
+        e |> raise
       | _, Error _ ->
         "Exception code invalid" |> FormatException |> raise
       | Ok fc, Ok ec ->
