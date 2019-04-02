@@ -1,5 +1,4 @@
 module ModbusTypes
-open Expecto.CSharp
 #nowarn "25"
 
 // for my code, the head should always be the least significant
