@@ -767,10 +767,7 @@ let tests =
         ]
 
         testList "ModError" [
-            // the client needs to keep track
-            // of the transaction, the offset and requested quantity
-            // so much complexity to save a few bytes!
-            test "valid" {
+            test "ReadDO, Illegal Address" {
                 let t : ModError = {
                     FunctionCode = FunctionCode.ReadDO
                     ExceptionCode = ExceptionCode.IllegalDataAddress
