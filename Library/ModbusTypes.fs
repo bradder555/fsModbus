@@ -186,7 +186,7 @@ type WriteRegRequest =
       let (fc :: addrH :: addrL :: valueH :: valueL :: []) = pdu // throw exception if not an exact match
       {
         Offset = [addrL; addrH] |> tU16
-        Value = [valueH; valueL] |> tU16
+        Value = [valueL; valueH] |> tU16
       } |> Ok
     with | e -> (pdu, e) |> Error
   member x.Serialize () =
@@ -237,7 +237,7 @@ type WriteRegsRequest =
       {
         Offset = [addrL; addrH] |> tU16
         Quantity = [countL; countH] |> tU16
-        Values = values |> Util.bytesToUint16
+        Values = values |> swapU16s |> Util.bytesToUint16
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
