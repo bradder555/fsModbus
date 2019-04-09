@@ -184,5 +184,56 @@ let tests =
           Expect.equal exT exT1 "We are expecting a Match Failure Exception"
         }        
       ]
+      
+      testList "ReadHRegRequest" [
+        test "parse ok" {
+          let payload = [3uy; 2uy; 4uy; 4uy; 1uy]
+          let e : ReadHRegRequest = {
+              Offset = 0x0204us
+              Quantity = 0x0401us
+            } 
 
+          let e : Result<ReadHRegRequest, PDU * exn> = e |> Ok
+          
+          let t = ReadHRegRequest.TryParse payload
+          Expect.equal e t "Valid ReadDoRequest "
+        }
+
+
+        test "parse fail short" {
+          let payload = [3uy; 2uy; 4uy;]
+          let t = ReadHRegRequest.TryParse payload
+          Expect.isError t "Should be error"
+          
+          let (pdu, exT) = 
+            t 
+            |> function 
+               | Result.Error x ->  x 
+               | _ -> [], Exception()
+          
+          Expect.equal pdu payload "the pdu should be returned"
+          
+          let exT = exT.GetType()
+          let exT1 = MatchFailureException("",0,0).GetType()
+          Expect.equal exT exT1 "We are expecting a Match Failure Exception"
+        }
+
+        test "parse fail long" {
+          let payload = [3uy; 2uy; 4uy; 2uy; 2uy; 5uy]
+          let t = ReadDiRequest.TryParse payload
+          Expect.isError t "Should be error"
+          
+          let (pdu, exT) = 
+            t 
+            |> function 
+               | Result.Error x ->  x 
+               | _ -> [], Exception()
+          
+          Expect.equal pdu payload "the pdu should be returned"
+          
+          let exT = exT.GetType()
+          let exT1 = MatchFailureException("",0,0).GetType()
+          Expect.equal exT exT1 "We are expecting a Match Failure Exception"
+        }        
+      ]
     ]
