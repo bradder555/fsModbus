@@ -91,15 +91,24 @@ type ModError =
       let (fc :: ec :: []) = pdu
       let fc =
         match fc with
-        | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy
-        | x -> x
-      let fc = FunctionCode.TryFromByte fc
+        | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy |> Ok
+        | x -> "Error flag not set" |> FormatException |> Error
+
+      let fc =
+        match fc with
+        | Ok x ->
+          FunctionCode.TryFromByte x
+          |> function
+             | Error _ -> "Function code invalid" |> FormatException |> Error
+             | Ok x -> x |> Ok
+        | Error x -> x |> Error
+
       let ec = ExceptionCode.TryFromByte ec
       match fc,ec with
-      | Error _, Error _ ->
-        "Function code and exception code invalid" |> FormatException |> raise
-      | Error _, _ ->
-        "Function code invalid" |> FormatException |> raise
+      | Error e1, Error _ ->
+        sprintf "%s, Exception code invalid" e1.Message |> FormatException |> raise
+      | Error e, _ ->
+        e |> raise
       | _, Error _ ->
         "Exception code invalid" |> FormatException |> raise
       | Ok fc, Ok ec ->
