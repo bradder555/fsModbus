@@ -83,7 +83,7 @@ let tests =
       ]
       testList "ReadDoRequest" [
         test "parse ok" {
-          let payload = [2uy; 2uy; 4uy; 4uy; 1uy]
+          let payload = [1uy; 2uy; 4uy; 4uy; 1uy]
           let e : ReadDoRequest = {
               Offset = 0x0204us
               Quantity = 0x0401us
@@ -97,7 +97,7 @@ let tests =
 
 
         test "parse fail short" {
-          let payload = [2uy; 2uy; 4uy;]
+          let payload = [1uy; 2uy; 4uy;]
           let t = ReadDoRequest.TryParse payload
           Expect.isError t "Should be error"
           
@@ -115,7 +115,7 @@ let tests =
         }
 
         test "parse fail long" {
-          let payload = [2uy; 2uy; 4uy; 2uy; 2uy; 5uy]
+          let payload = [1uy; 2uy; 4uy; 2uy; 2uy; 5uy]
           let t = ReadDoRequest.TryParse payload
           Expect.isError t "Should be error"
           
