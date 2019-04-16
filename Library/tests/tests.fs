@@ -2,7 +2,6 @@ module Tests
 
 open Hopac
 open Expecto
-open Util
 
 let tests =
   testList "." ([ // List is alphabetical order
