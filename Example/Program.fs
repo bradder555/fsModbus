@@ -22,7 +22,7 @@ let main argv =
   let mutable hReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
   let mutable iReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
 
-  let readHRegFunc (x : ReadHRegRequest) : ReadHRegResponse = 
+  let readHRegFunc (x : ReqOffQuant) : ResRegs = 
     let b = x.Offset |> int
     let c = x.Quantity |> int
     let e = b + c - 1
@@ -43,7 +43,7 @@ let main argv =
       Value = hReg |> Map.find o
     }
 
-  let writeRegsFunc (x : WriteRegsRequest) : WriteRegsResponse = 
+  let writeRegsFunc (x : WriteRegsRequest) : ResOffQuant = 
      let o = x.Offset |> int
      let c = x.Quantity |> int
      let vals = x.Values
@@ -51,11 +51,11 @@ let main argv =
      |> List.map(fun x -> hReg |> Map.add (o + x) (vals |> List.item x) |> fun x -> hReg <- x)
      |> ignore
      {
-       Count = x.Quantity
+       Quantity = x.Quantity
        Offset = x.Offset
      }
 
-  let readDOFunc (x : ReadDoRequest) : ReadDoResponse = 
+  let readDOFunc (x : ReqOffQuant) : ResBools = 
     let offset = x.Offset |> int
     let count = x.Quantity |> int
     let ``end`` = offset + count - 1
@@ -74,7 +74,7 @@ let main argv =
       Value = dos |> Map.find start
     }
 
-  let writeDOsFunc (x : WriteDosRequest) : WriteDosResponse = 
+  let writeDOsFunc (x : WriteDosRequest) : ResOffQuant = 
     let offset = x.Offset |> int
     let qty = x.Quantity |> int
     let vals = x.Values
@@ -83,25 +83,26 @@ let main argv =
     |> ignore
     {
       Offset = x.Offset
-      Count = x.Quantity
+      Quantity = x.Quantity
     }
 
-  let actionFuncs : ModFuncs = 
-    {
-      ReadDOFunc    = readDOFunc
-      ReadDIFunc    = ModFuncs.defaultSuccesses.ReadDIFunc
-      ReadHRegFunc  = readHRegFunc
-      ReadIRegFunc  = ModFuncs.defaultSuccesses.ReadIRegFunc
-      WriteDOFunc   = writeDOFunc
-      WriteRegFunc  = writeRegFunc
-      WriteDOsFunc  = writeDOsFunc
-      WriteRegsFunc = writeRegsFunc
-      ModErrorFunc  = ModFuncs.defaultSuccesses.ModErrorFunc
-    }
+  let actionFunc : ModFunc = 
+    let r (req : Request) : Response =
+      match req with 
+      | ReadDOReq x -> readDOFunc x |> ReadDORes
+      | ReadDIReq x -> ModFunc.Default.Success.readDIFunc x 
+      | ReadHRegReq x -> readHRegFunc x |> ReadHRegRes
+      | ReadIRegReq x -> ModFunc.Default.Success.readIRegFunc x 
+      | WriteDOReq x -> writeDOFunc x |> WriteDORes
+      | WriteRegReq x -> writeRegFunc x |> WriteRegRes
+      | WriteDOsReq x -> writeDOsFunc x |> WriteDOsRes
+      | WriteRegsReq x -> ModFunc.Default.Success.writeRegsFunc x
+    r
+
   let conf = 
     conf |> function | Ok x -> x // okay to crash here
   
-  let modServer = Modbus.server conf actionFuncs
+  let modServer = Modbus.server conf actionFunc
 
   let app = 
     match runApp, shouldTest with 

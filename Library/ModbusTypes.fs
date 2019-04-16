@@ -119,12 +119,12 @@ type ModError =
     with | e ->
       (pdu, e) |> Error
 
-type ReadDoRequest =
+type ReqOffQuant = 
   {
     Offset : System.UInt16
     Quantity: System.UInt16
   }
-  static member TryParse (pdu : PDU) : Result<ReadDoRequest,PDU * exn> =
+  static member TryParse (pdu : PDU) : Result<ReqOffQuant,PDU * exn> =
     try
       let (fc :: addrH :: addrL :: countH :: countL :: []) = pdu // throw exception if not an exact match
       {
@@ -132,69 +132,11 @@ type ReadDoRequest =
         Quantity = [countL; countH] |> tU16
       } |> Ok
     with | e -> (pdu, e) |> Error
-  member x.Serialize () =
+  member x.PartialSerialize () =
     let [addrL; addrH] = x.Offset |> Util.U16ToBytes
     let [countL; countH] = x.Quantity |> Util.U16ToBytes
     let fc = FunctionCode.ReadDO.ToByte()
-    [fc; addrH; addrL; countH; countL]
-
-type ReadDiRequest =
-  {
-    Offset : System.UInt16
-    Quantity: System.UInt16
-  }
-  static member TryParse (pdu : PDU) : Result<ReadDiRequest,PDU * exn> =
-    try
-      let (fc :: addrH :: addrL :: countH :: countL :: []) = pdu // throw exception if not an exact match
-      {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
-      } |> Ok
-    with | e -> (pdu, e) |> Error
-  member x.Serialize () =
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-    let [countL; countH] = x.Quantity |> Util.U16ToBytes
-    let fc = FunctionCode.ReadDI.ToByte()
-    [fc; addrH; addrL; countH; countL]
-
-type ReadHRegRequest =
-  {
-    Offset : System.UInt16
-    Quantity: System.UInt16
-  }
-  static member TryParse (pdu : byte list) : Result<ReadHRegRequest,PDU * exn> =
-    try
-      let (fc :: addrH :: addrL :: countH :: countL :: []) = pdu // throw exception if not an exact match
-      {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
-      } |> Ok
-    with | e -> (pdu, e) |> Error
-
-  member x.Serialize () = // serialization can't fail
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-    let [countL; countH] = x.Quantity |> Util.U16ToBytes
-    let fc = FunctionCode.ReadHReg.ToByte()
-    [fc; addrH; addrL; countH; countL]
-
-type ReadIRegRequest =
-  {
-    Offset : System.UInt16
-    Quantity: System.UInt16
-  }
-  static member TryParse (pdu : byte list) : Result<ReadIRegRequest, PDU * exn > =
-    try
-      let (fc :: addrH :: addrL :: countH :: countL :: []) = pdu // throw exception if not an exact match
-      {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
-      } |> Ok
-    with | e -> (pdu, e) |> Error
-  member x.Serialize () =
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-    let [countL; countH] = x.Quantity |> Util.U16ToBytes
-    let fc = FunctionCode.ReadIReg.ToByte()
-    [fc; addrH; addrL; countH; countL]
+    [addrH; addrL; countH; countL]
 
 type WriteDoRequest =
   {
@@ -288,27 +230,98 @@ type WriteRegsRequest =
       [fc; addrH; addrL; countH; countL; byteCount] @ data
 
 type Request =
-  | ReadDOReq of ReadDoRequest
-  | ReadDIReq of ReadDiRequest
-  | ReadHRegReq of ReadHRegRequest
-  | ReadIRegReq of ReadIRegRequest
+  | ReadDOReq of ReqOffQuant
+  | ReadDIReq of ReqOffQuant
+  | ReadHRegReq of ReqOffQuant
+  | ReadIRegReq of ReqOffQuant
   | WriteDOReq of WriteDoRequest
   | WriteRegReq of WriteRegRequest
   | WriteDOsReq of WriteDosRequest
   | WriteRegsReq of WriteRegsRequest
   | ModErrorReq of ModError
+  static member TryParse (pdu : byte list) : Result<Request, PDU> = 
+    let (Fc :: OffsetH :: OffsetL :: Rem) = pdu
+    let functionCode = Fc |> FunctionCode.TryFromByte
+    let modError fc =
+      {
+        FunctionCode = fc
+        ExceptionCode = IllegalFunction
+      } |> ModErrorReq
+    match functionCode with
+    | Ok functionCode ->
+      match functionCode with
+      | FunctionCode.ReadDO ->
+        ReqOffQuant.TryParse pdu
+        |> function
+           | Ok x -> x |> ReadDOReq |> Ok
+           | Error (p,e) -> modError FunctionCode.ReadDO |> Ok
 
-type ReadDoResponse =
+      | FunctionCode.ReadDI ->
+        ReqOffQuant.TryParse pdu
+        |> function
+           | Ok x -> x |> ReadDIReq |> Ok
+           | Error (p,e) -> modError FunctionCode.ReadDI |> Ok
+
+      | FunctionCode.ReadHReg ->
+        ReqOffQuant.TryParse pdu
+        |> function
+           | Ok x -> x |> ReadHRegReq |> Ok
+           | Error (p,e) -> modError FunctionCode.ReadHReg |> Ok
+
+      | FunctionCode.ReadIReg ->
+        ReqOffQuant.TryParse pdu
+        |> function
+           | Ok x -> x |> ReadIRegReq |> Ok
+           | Error (p,e) -> modError FunctionCode.ReadIReg |> Ok
+
+      | FunctionCode.WriteDO ->
+        WriteDoRequest.TryParse pdu
+        |> function
+           | Ok x -> x |> WriteDOReq |> Ok
+           | Error (p,e) -> modError FunctionCode.WriteDO |> Ok
+
+      | FunctionCode.WriteReg ->
+        WriteRegRequest.TryParse pdu
+        |> function
+           | Ok x -> x |> WriteRegReq |> Ok
+           | Error (p,e) -> modError FunctionCode.WriteReg |> Ok
+
+      | FunctionCode.WriteDOs ->
+        WriteDosRequest.TryParse pdu
+        |> function
+           | Ok x -> x |> WriteDOsReq |> Ok
+           | Error (p,e) -> modError FunctionCode.WriteDOs |> Ok
+
+      | FunctionCode.WriteRegs ->
+        WriteRegsRequest.TryParse pdu
+        |> function
+           | Ok x -> x |> WriteRegsReq |> Ok
+           | Error (p,e) -> modError FunctionCode.WriteRegs |> Ok
+
+    | Error _ ->
+      pdu |> Error
+  member x.Serialize () : byte list = 
+    match x with 
+    | ReadDOReq x -> FunctionCode.ReadDO.ToByte() :: x.PartialSerialize()
+    | ReadDIReq x -> FunctionCode.ReadDI.ToByte() :: x.PartialSerialize()
+    | ReadHRegReq x -> FunctionCode.ReadHReg.ToByte() :: x.PartialSerialize()
+    | ReadIRegReq x -> FunctionCode.ReadIReg.ToByte() ::  x.PartialSerialize()
+    | WriteDOReq x -> x.Serialize()
+    | WriteRegReq x -> x.Serialize()
+    | WriteDOsReq x -> x.Serialize()
+    | WriteRegsReq x -> x.Serialize()
+    | ModErrorReq x -> x.Serialize()
+
+type ResBools =
   {
     Status: bool list
   }
-  member x.Serialize ()  : byte list =
+  member x.PartialSerialize ()  : byte list =
     let status = x.Status |> Util.BoolsToBytes
     let c = status |> List.length |> byte
-    let fc = FunctionCode.ReadDO.ToByte()
-    [fc; c] @ status
+    c :: status
 
-  static member TryParse (pdu : PDU) : Result<ReadDoResponse, PDU * exn> =
+  static member TryParse (pdu : PDU) : Result<ResBools, PDU * exn> =
     try
       let (fc :: count :: data) = pdu // throw exception if not an exact match
       {
@@ -316,55 +329,19 @@ type ReadDoResponse =
       } |> Ok
     with | e -> (pdu, e) |> Error
 
-type ReadDiResponse =
-  {
-    Status: bool list
-  }
-  member x.Serialize ()  : byte list =
-    let status = x.Status |> Util.BoolsToBytes
-    let c = status |> List.length |> byte
-    let fc = FunctionCode.ReadDI.ToByte()
-    [fc; c] @ status
-
-  static member TryParse (pdu : PDU) : Result<ReadDiResponse, PDU * exn> =
-    try
-      let (fc :: count :: data) = pdu // throw exception if not an exact match
-      {
-        Status = data |> bytesToBool
-      } |> Ok
-    with | e -> (pdu, e) |> Error
-
-type ReadHRegResponse =
+type ResRegs =
   {
     Values : UInt16 list
   }
-  member x.Serialize ()  : byte list =
+  member x.PartialSerialize ()  : byte list =
     let data = x.Values |> Util.U16sToBytes |> swapU16s
     let count = data |> List.length |> byte
 
-    [3uy; count] @ data
+    count :: data
 
-  static member TryParse (pdu : PDU) : Result<ReadHRegResponse, PDU * exn> =
+  static member TryParse (pdu : PDU) : Result<ResRegs, PDU * exn> =
     try
       let (fc :: count :: data) = pdu // throw exception if not an exact match
-      {
-        Values = data |> bytesToUint16
-      } |> Ok
-    with | e -> (pdu, e) |> Error
-
-type ReadIRegResponse =
-  {
-    Values : UInt16 list
-  }
-  member x.Serialize ()  : byte list =
-    let data = x.Values |> Util.U16sToBytes |> swapU16s
-    let count = data |> List.length |> byte
-    let fc = FunctionCode.ReadIReg.ToByte()
-    [fc; count] @ data
-
-  static member TryParse (pdu : PDU) : Result<ReadIRegResponse, PDU * exn> =
-    try
-      let (fc :: count :: data ) = pdu // throw exception if not an exact match
       {
         Values = data |> bytesToUint16
       } |> Ok
@@ -404,59 +381,43 @@ type WriteRegResponse =
     let fc = FunctionCode.WriteReg.ToByte()
     fc :: oBytes @ oVal
 
-type WriteDosResponse =
+type ResOffQuant =
   {
     Offset: UInt16
-    Count: UInt16
+    Quantity: UInt16
   }
-  member x.Serialize ()  : byte list =
+  member x.PartialSerialize ()  : byte list =
     let oOffset = x.Offset |> Util.U16ToBytes |> swapU16s
-    let oCount = x.Count |> Util.U16ToBytes |> swapU16s
-    let fc = FunctionCode.WriteDOs.ToByte()
-    fc :: oOffset @ oCount
-
-type WriteRegsResponse =
-  {
-    Offset: UInt16
-    Count: UInt16
-  }
-  member x.Serialize ()  : byte list =
-    let oOffset = x.Offset |> U16ToBytes |> swapU16s
-    let oCount = x.Count |> U16ToBytes |> swapU16s
-    [16uy] @ oOffset @ oCount
-
-  static member TryFromByte (x : byte) : Result<ExceptionCode,byte> =
-    match x with
-    | 1uy -> Ok IllegalFunction
-    | 2uy -> Ok IllegalDataAddress
-    | 3uy -> Ok IllegalDataValue
-    | 4uy -> Ok SlaveDeviceFailure
-    | 6uy -> Ok SlaveDeviceBusy
-    | 10uy -> Ok PathUnavailable
-    | 11uy -> Ok DeviceFailedToRespond
-    | y -> Error y
+    let oCount = x.Quantity |> Util.U16ToBytes |> swapU16s
+    oOffset @ oCount
 
 type Response =
-  | ReadDORes of ReadDoResponse
-  | ReadDIRes of ReadDiResponse
-  | ReadHRegRes of ReadHRegResponse
-  | ReadIRegRes of ReadIRegResponse
+  | ReadDORes of ResBools
+  | ReadDIRes of ResBools
+  | ReadHRegRes of ResRegs
+  | ReadIRegRes of ResRegs
   | WriteDORes of WriteDoResponse
   | WriteRegRes of WriteRegResponse
-  | WriteDOsRes of WriteDosResponse
-  | WriteRegsRes of WriteRegsResponse
+  | WriteDOsRes of ResOffQuant
+  | WriteRegsRes of ResOffQuant
   | ModErrorRes of ModError
   member x.Serialize ()  : byte list =
     match x with
-    | ReadDORes x -> x.Serialize ()
-    | ReadDIRes x -> x.Serialize ()
-    | ReadHRegRes x -> x.Serialize ()
-    | ReadIRegRes x -> x.Serialize ()
+    | ReadDORes x -> FunctionCode.ReadDO.ToByte() :: x.PartialSerialize ()
+    | ReadDIRes x -> FunctionCode.ReadDI.ToByte() :: x.PartialSerialize ()
+    | ReadHRegRes x -> FunctionCode.ReadHReg.ToByte() :: x.PartialSerialize ()
+    | ReadIRegRes x -> FunctionCode.ReadIReg.ToByte() :: x.PartialSerialize ()
     | WriteDORes x -> x.Serialize ()
     | WriteRegRes x -> x.Serialize ()
-    | WriteDOsRes x -> x.Serialize ()
-    | WriteRegsRes x -> x.Serialize ()
+    | WriteDOsRes x -> FunctionCode.WriteDOs.ToByte() :: x.PartialSerialize ()
+    | WriteRegsRes x -> FunctionCode.WriteRegs.ToByte() :: x.PartialSerialize ()
     | ModErrorRes x -> x.Serialize ()
+
+  // todo: need to add response parsing
+
+type MbapPayload = 
+  | Response of Response
+  | Request of Request
 
 type Mbap =
   {
@@ -464,6 +425,7 @@ type Mbap =
     ProtocolIdentifier : ProtocolIdentifier
     Length : Length
     UnitIdentifier : UnitIdentifier
+    Payload : MbapPayload
   }
   member x.Serialize ()  : byte list =
     // The transaction and protocol identifiers are reversed
@@ -486,88 +448,78 @@ type Mbap =
     nMbap.Serialize () @ pdu @ []
 
 // delegates that are called for each type of function
-type ModFuncs =
-  {
-    ReadDOFunc    : ReadDoRequest -> ReadDoResponse
-    ReadDIFunc    : ReadDiRequest -> ReadDiResponse
-    ReadHRegFunc  : ReadHRegRequest -> ReadHRegResponse
-    ReadIRegFunc  : ReadIRegRequest -> ReadIRegResponse
-    WriteDOFunc   : WriteDoRequest -> WriteDoResponse
-    WriteRegFunc  : WriteRegRequest -> WriteRegResponse
-    WriteDOsFunc  : WriteDosRequest -> WriteDosResponse
-    WriteRegsFunc : WriteRegsRequest -> WriteRegsResponse
-    ModErrorFunc  : ModError -> ModError
-  }
+type ModFunc = Request -> Response
+module ModFunc = 
+  let private expected q =
+    q / 8us + 1us
+    |> fun x -> [1us..x]
+    |> List.map (fun _ -> 0uy)
+    |> fun x -> 1uy :: (x |> List.tail)
+    |> Util.bytesToBool
+
+  let private expected16 (q : UInt16) =
+    [1us..q]
+    |> List.map(fun _ -> 0us)
+    |> fun x -> 1us :: (x |> List.tail)
+
+  module Default = 
+    module Success = 
+      let readDOFunc (req : ReqOffQuant) : Response = 
+        {
+          Status = expected req.Quantity
+        } |> ReadDORes
+      let readDIFunc (req : ReqOffQuant) : Response = 
+        {
+          Status = expected req.Quantity
+        } |> ReadDIRes
+      let readHRegFunc (req : ReqOffQuant) : Response = 
+        {
+          Values = expected16 req.Quantity
+        } |> ReadHRegRes
+      let readIRegFunc (req : ReqOffQuant) : Response = 
+        {
+          Values = expected16 req.Quantity
+        } |> ReadIRegRes
+      let writeDOFunc (req : WriteDoRequest) : Response = 
+        let r : WriteDoResponse = 
+          {
+            Offset = req.Offset
+            Value = req.Value
+          } 
+        r |> WriteDORes
+      let writeRegFunc (req : WriteRegRequest) : Response = 
+        {
+          Offset = req.Offset
+          Value = req.Value
+        } |> WriteRegRes
+      
+      let writeDOsFunc (req : WriteDosRequest) : Response = 
+        {
+          Offset = req.Offset
+          Quantity = req.Quantity
+        } |> WriteDOsRes
+
+      let writeRegsFunc (req : WriteRegsRequest) : Response = 
+        {
+          Offset = req.Offset
+          Quantity = req.Quantity
+        } |> WriteRegsRes
+
   // the defaults do nothing, all they do is return is
   // the expected corresponding successful response
-  static member defaultSuccesses =
-    let expected q =
-      q / 8us + 1us
-      |> fun x -> [1us..x]
-      |> List.map (fun _ -> 0uy)
-      |> fun x -> 1uy :: (x |> List.tail)
-      |> Util.bytesToBool
+  let defaultSuccesses =
+    let r (req : Request) : Response = 
+      match req with
+      | ReadDOReq x -> Default.Success.readDOFunc x 
+      | ReadDIReq x -> Default.Success.readDIFunc x 
+      | ReadHRegReq x -> Default.Success.readHRegFunc x 
+      | ReadIRegReq x -> Default.Success.readIRegFunc x 
+      | WriteDOReq x -> Default.Success.writeDOFunc x 
+      | WriteRegReq x -> Default.Success.writeRegFunc x 
+      | WriteDOsReq x -> Default.Success.writeDOsFunc x 
+      | WriteRegsReq x -> Default.Success.writeRegsFunc x  
 
-    let expected16 (q : UInt16) =
-      [1us..q]
-      |> List.map(fun _ -> 0us)
-      |> fun x -> 1us :: (x |> List.tail)
-
-    let readDoFunc (x : ReadDoRequest) : ReadDoResponse =
-      {
-        Status = expected x.Quantity
-      }
-
-    let readDiFunc (x : ReadDiRequest) : ReadDiResponse =
-      {
-        Status = expected x.Quantity
-      }
-
-    let readHRegFunc (x : ReadHRegRequest) : ReadHRegResponse =
-      {
-        Values = expected16 x.Quantity
-      }
-
-    let readIRegFunc (x : ReadIRegRequest) : ReadIRegResponse =
-      {
-        Values = expected16 x.Quantity
-      }
-
-    let writeDoFunc (x : WriteDoRequest) : WriteDoResponse =
-      {
-        Offset = x.Offset
-        Value = x.Value
-      }
-
-    let writeRegFunc (x : WriteRegRequest) : WriteRegResponse =
-      {
-        Offset = x.Offset
-        Value = x.Value
-      }
-
-    let writeDOsFunc (x : WriteDosRequest) : WriteDosResponse =
-      {
-        Count = x.Quantity
-        Offset = x.Offset
-      }
-
-    let writeRegsFunc (x : WriteRegsRequest) : WriteRegsResponse =
-      {
-        Count = x.Quantity
-        Offset = x.Offset
-      }
-    {
-      ReadDOFunc    = readDoFunc
-      ReadDIFunc    = readDiFunc
-      ReadHRegFunc  = readHRegFunc
-      ReadIRegFunc  = readIRegFunc
-      WriteDOFunc   = writeDoFunc
-      WriteRegFunc  = writeRegFunc
-      WriteDOsFunc  = writeDOsFunc
-      WriteRegsFunc = writeRegsFunc
-      ModErrorFunc  = fun x -> x
-    }
-
+    r
 
 type ModbusServerConf =
   {

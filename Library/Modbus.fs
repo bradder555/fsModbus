@@ -6,7 +6,6 @@ open System
 open System.Threading
 open Util
 
-
 let validateMbap (slaveId : byte) (frame : byte []) : PDU * Mbap =
   // the smallest frame is 12 bytes long
   if frame.Length < 12 then
@@ -35,86 +34,10 @@ let validateMbap (slaveId : byte) (frame : byte []) : PDU * Mbap =
 
   Pdu, mbap
 
-let modError fc =
-  {
-    FunctionCode = fc
-    ExceptionCode = IllegalFunction
-  } |> ModErrorReq
-
-let validatePdu (pdu : PDU) : Result<Request, PDU> =
-  let (Fc :: OffsetH :: OffsetL :: Rem) = pdu
-  let functionCode = Fc |> ModbusTypes.FunctionCode.TryFromByte
-  match functionCode with
-  | Ok functionCode ->
-    match functionCode with
-    | FunctionCode.ReadDO ->
-      ReadDoRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> ReadDOReq |> Ok
-         | Error (p,e) -> modError FunctionCode.ReadDO |> Ok
-
-    | FunctionCode.ReadDI ->
-      ReadDiRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> ReadDIReq |> Ok
-         | Error (p,e) -> modError FunctionCode.ReadDI |> Ok
-
-    | FunctionCode.ReadHReg ->
-      ReadHRegRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> ReadHRegReq |> Ok
-         | Error (p,e) -> modError FunctionCode.ReadHReg |> Ok
-
-    | FunctionCode.ReadIReg ->
-      ReadIRegRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> ReadIRegReq |> Ok
-         | Error (p,e) -> modError FunctionCode.ReadIReg |> Ok
-
-    | FunctionCode.WriteDO ->
-      WriteDoRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> WriteDOReq |> Ok
-         | Error (p,e) -> modError FunctionCode.WriteDO |> Ok
-
-    | FunctionCode.WriteReg ->
-      WriteRegRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> WriteRegReq |> Ok
-         | Error (p,e) -> modError FunctionCode.WriteReg |> Ok
-
-    | FunctionCode.WriteDOs ->
-      WriteDosRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> WriteDOsReq |> Ok
-         | Error (p,e) -> modError FunctionCode.WriteDOs |> Ok
-
-    | FunctionCode.WriteRegs ->
-      WriteRegsRequest.TryParse pdu
-      |> function
-         | Ok x -> x |> WriteRegsReq |> Ok
-         | Error (p,e) -> modError FunctionCode.WriteRegs |> Ok
-
-  | Error _ ->
-    pdu |> Error
-
-
-let mapReqToRes (funcs : ModFuncs) (req : Request) : Response =
-  match req with
-  | ReadDOReq x -> funcs.ReadDOFunc x |> ReadDORes
-  | ReadDIReq x -> funcs.ReadDIFunc x |> ReadDIRes
-  | ReadHRegReq x -> funcs.ReadHRegFunc x |> ReadHRegRes
-  | ReadIRegReq x -> funcs.ReadIRegFunc x |> ReadIRegRes
-  | WriteDOReq x -> funcs.WriteDOFunc x |> WriteDORes
-  | WriteRegReq x -> funcs.WriteRegFunc x |> WriteRegRes
-  | WriteRegsReq x -> funcs.WriteRegsFunc x |> WriteRegsRes
-  | WriteDOsReq x -> funcs.WriteDOsFunc x |> WriteDOsRes
-  | ModErrorReq x -> funcs.ModErrorFunc x |> ModErrorRes
-
 open Hopac
 open System.Net
 open System.Net.Sockets
-let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Job<unit> =
+let rec handleReceive (slaveId : byte) (handle : Socket) (func : ModFunc) : Job<unit> =
   job {
     let buff : Memory<byte> = Memory(Array.zeroCreate(300))
     let! len = handle.ReceiveAsync(buff, SocketFlags.None, CancellationToken(false)).AsTask()
@@ -122,15 +45,15 @@ let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Jo
       | true ->
         let frame = buff.Slice(0, len).ToArray()
         let (pdu, mbap) = validateMbap slaveId frame
-        let request = validatePdu pdu
+        let request = Request.TryParse pdu
         match request with
         | Ok r ->
-          let response = r |> mapReqToRes funcs
+          let response = r |> func
           let resPdu = response.Serialize()
           let rawRes = Mbap.wrapPdu mbap resPdu |> List.toArray
           let outBuff = rawRes |> ReadOnlyMemory
           let! _ = handle.SendAsync(outBuff, SocketFlags.None, CancellationToken()).AsTask()
-          do! handleReceive slaveId handle funcs
+          do! handleReceive slaveId handle func
         | Error _ ->
           handle.Disconnect(true)
           handle.Dispose()
@@ -139,11 +62,11 @@ let rec handleReceive (slaveId : byte) (handle : Socket) (funcs : ModFuncs) : Jo
         handle.Dispose()
   } |> Job.startIgnore
 
-let server (conf : ModbusServerConf) (actionFuncs : ModFuncs) : Job<unit> =
+let server (conf : ModbusServerConf) (actionFunc : ModFunc) : Job<unit> =
   let listener = new Socket(SocketType.Stream, ProtocolType.Tcp)
   listener.Bind(IPEndPoint(conf.IPAddress, int conf.Port))
   listener.Listen(100)
   job {
     let! handler = listener.AcceptAsync()
-    do! handleReceive conf.SlaveId handler actionFuncs
+    do! handleReceive conf.SlaveId handler actionFunc
   } |> Job.foreverIgnore

@@ -81,6 +81,7 @@ let tests =
             Expect.equal t e "Incomplete match case"
         }
       ]
+      (*
       testList "ReadDoRequest" [
         test "parse ok" {
           let payload = [1uy; 2uy; 4uy; 4uy; 1uy]
@@ -288,5 +289,5 @@ let tests =
           Expect.equal exT exT1 "We are expecting a Match Failure Exception"
         }        
       ]
-
+      *)
     ]
