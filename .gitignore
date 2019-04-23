@@ -4,3 +4,5 @@ Library/bin/**
 Library/obj/**
 Docker*/
 Docker*
+
+obj/**
