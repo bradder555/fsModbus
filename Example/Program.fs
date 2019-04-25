@@ -123,10 +123,10 @@ let main argv =
   let app =
     match runApp, conf, shouldTest with
     | true, Ok conf, _ ->
-      let modServer = Modbus.server conf actionFunc
+      let modServer = Modbus.Server.build conf actionFunc
       modServer >>- (fun () -> 0)
     | false, Ok conf, false ->
-      let modServer = Modbus.server conf actionFunc
+      let modServer = Modbus.Server.build conf actionFunc
       modServer >>- (fun () -> 0)
     | _ ->
       0 |> Job.result
