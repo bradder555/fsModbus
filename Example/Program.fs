@@ -7,6 +7,7 @@ open System
 
 [<EntryPoint>]
 let main argv =
+  // will probably move testing into a separate project
   let shouldTest = argv |> Seq.tryFind (fun x -> x.ToLower() = "test") |> Option.isSome
   let runApp = argv |> Seq.tryFind (fun x -> x.ToLower() = "run") |> Option.isSome
 
@@ -119,27 +120,53 @@ let main argv =
       | _ -> () |> Error
     r
 
+  // this is a bit hokey but can't think of an alternative
+  let finished = IVar()
 
-  let app =
-    match runApp, conf, shouldTest with
-    | true, Ok conf, _ ->
-      let modServer = Modbus.Server.build conf actionFunc
-      modServer >>- (fun () -> 0)
-    | false, Ok conf, false ->
-      let modServer = Modbus.Server.build conf actionFunc
-      modServer >>- (fun () -> 0)
-    | _ ->
-      0 |> Job.result
+  let gracefulShutdown : Alt<unit> =
 
-  let tests =
-    match shouldTest with
-    | true ->
-      Tests.runTests
-    | false ->
-      0 |> Job.result
+    fun nack -> job {
+        let c = IVar()
+        do!
+          job {
+            Console.ReadLine() |> ignore
+            printfn "enter pressed"
+            do! IVar.tryFill c ()
+          } |> Job.queueIgnore
 
-  [app; tests]
-  |> Job.conCollect
-  |> Hopac.run
-  |> Seq.tryFind (fun x -> x <> 0)
-  |> Option.defaultValue 0
+
+        do!
+          job {
+            AppDomain.CurrentDomain.ProcessExit.Add (
+              fun e ->
+                () |> IVar.tryFill c |> run
+                IVar.read finished |> run // block here to allow the application to close
+                ()
+            )
+
+          }
+        // i don't like it, but Cntl+c doesn't work on dotnet core
+        // this is because it kills the dotnet process, not our process
+        (*
+        Console.CancelKeyPress.Add (
+          fun e ->
+          printfn "control + c pressed"
+          e.Cancel <- true
+          exitEvent.Set() |> ignore
+          () |> IVar.tryFill c |> start
+        )*)
+        return IVar.read c ^-> fun _ -> printfn "gracefully shutting down"
+    } |> Alt.withNackJob
+
+  let conf = conf |> function | Ok conf -> conf
+  let server = Modbus.Server.build conf actionFunc
+  job {
+    do! Alt.choose [
+      gracefulShutdown
+      server
+    ]
+  } |> Hopac.run
+
+  // horrible global to tell processexit that the app has finished gracefully
+  IVar.tryFill finished () |> start
+  0

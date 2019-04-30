@@ -8,13 +8,14 @@ let tests =
     Test.Deserialization.tests
     Test.Serialization.tests
     Test.Util.tests
+    Test.Client.tests
   ] |> List.rev) // the sequenced summary output is this list reversed
 
 // test util
-let runTests = 
+let runTests =
   job {
     // i run sequenced simply so the output summary is in order,
-    // this means tests will run slightly longer, but i doubt it will be 
+    // this means tests will run slightly longer, but i doubt it will be
     // bothersome
     return runTestsWithArgs defaultConfig [|"--summary"; "--sequenced";|] tests
   }
