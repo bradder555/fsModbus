@@ -1,11 +1,13 @@
 module ModbusTypes
 open System.Transactions
+open Hopac
 #nowarn "25"
 
 // for my code, the head should always be the least significant
 
 open Util
 open System
+open System.Net
 
 type TransactionIdentifier = System.UInt16
 type ProtocolIdentifier = System.UInt16
@@ -697,10 +699,12 @@ module ModFunc =
 
     r
 
+type Port = System.UInt32
+
 type ModbusServerConf =
   {
-    Port : System.UInt32
-    IPAddress : System.Net.IPAddress
+    Port : Port
+    IPAddress : IPAddress
   }
   static member TryParse (str : string) : Result<ModbusServerConf, string> =
     // string expected in the format tcp://127.0.0.1:502
@@ -723,3 +727,62 @@ type ModbusServerConf =
         | _ -> Error str
       | _ -> Error str
     | _ -> Error str
+
+type Hostname = String
+
+type ServerConnection =
+  | IPAddress' of IPAddress
+  | Hostname of Hostname
+
+
+type ModbusClientConf =
+  {
+    Server : ServerConnection
+    Port : Port
+    SlaveId : int
+  }
+  static member TryParse (str : string) : Result<ModbusClientConf, string> =
+    // string expected in the format tcp://127.0.0.1:502:1
+    let str = str.ToLower()
+    match str.IndexOf("tcp://") with
+    | 0 ->
+      let str1 = str.Split("tcp://") |> Array.last
+      match str1.Split(":") with
+      | [|addr; port; s|] ->
+        let resIP = ref (System.Net.IPAddress(0L))
+        let successIP = System.Net.IPAddress.TryParse(addr, resIP)
+        let resPort = ref 0u
+        let successPort = System.UInt32.TryParse(port, resPort)
+        let slaveId = ref 0
+        let successSlave = System.Int32.TryParse(s, slaveId)
+        match successIP, successPort, successSlave with
+        | true, true, true ->
+          {
+            Port = resPort.Value
+            Server = resIP.Value |> IPAddress'
+            SlaveId = slaveId.Value
+          } |> Ok
+        | false, true, true ->
+          {
+            Port = resPort.Value
+            Server = addr |> Hostname
+            SlaveId = slaveId.Value
+          } |> Ok
+        | _ -> Error str
+      | _ -> Error str
+    | _ -> Error str
+
+type Offset = UInt16
+
+// reading of individual addresses should be discouraged
+// ideally block-reading of addresses will be followed
+// thus i've skipped the single function codes for now
+type ModbusClient =
+  {
+    ReadDOs : Ch<ReqOffQuant * IVar<Result<bool list, exn>>>
+    ReadDIs : Ch<ReqOffQuant * IVar<Result<bool list, exn>>>
+    ReadHRegs: Ch<ReqOffQuant * IVar<Result<UInt16 list, exn>>>
+    ReadIRegs: Ch<ReqOffQuant * IVar<Result<UInt16 list, exn>>>
+    WriteDOs: Ch<(Offset * bool list) * IVar<Result<unit, exn>>>
+    WriteRegs: Ch<(Offset * UInt16 list) * IVar<Result<unit, exn>>>
+  }
