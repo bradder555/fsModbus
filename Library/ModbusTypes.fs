@@ -1,4 +1,5 @@
 module ModbusTypes
+open System.Transactions
 #nowarn "25"
 
 // for my code, the head should always be the least significant
@@ -76,6 +77,8 @@ type ExceptionCode =
     | 10uy -> Ok PathUnavailable
     | 16uy -> Ok DeviceFailedToRespond
     | _ -> Error x
+
+
 type ModError =
   {
     FunctionCode : FunctionCode
@@ -88,14 +91,14 @@ type ModError =
 
   static member TryParse (pdu : PDU) : Result<ModError, PDU * exn> =
     try
-      let (fc :: ec :: []) = pdu
-      let fc =
-        match fc with
+      let (functionCode :: [errorCode]) = pdu
+      let functionCode =
+        match functionCode with
         | x when x &&& 0x80uy = 0x80uy -> x - 0x80uy |> Ok
         | x -> "Error flag not set" |> FormatException |> Error
 
-      let fc =
-        match fc with
+      let functionCode =
+        match functionCode with
         | Ok x ->
           FunctionCode.TryFromByte x
           |> function
@@ -103,82 +106,82 @@ type ModError =
              | Ok x -> x |> Ok
         | Error x -> x |> Error
 
-      let ec = ExceptionCode.TryFromByte ec
-      match fc,ec with
+      let errorCode = ExceptionCode.TryFromByte errorCode
+      match functionCode,errorCode with
       | Error e1, Error _ ->
         sprintf "%s, Exception code invalid" e1.Message |> FormatException |> raise
       | Error e, _ ->
         e |> raise
       | _, Error _ ->
         "Exception code invalid" |> FormatException |> raise
-      | Ok fc, Ok ec ->
+      | Ok functionCode, Ok errorCode ->
         {
-          FunctionCode = fc
-          ExceptionCode = ec
+          FunctionCode = functionCode
+          ExceptionCode = errorCode
         } |> Ok
     with | e ->
       (pdu, e) |> Error
 
-type ReqOffQuant = 
+type ReqOffQuant =
   {
-    Offset : System.UInt16
+    Address : System.UInt16
     Quantity: System.UInt16
   }
   static member TryParse (pdu : PDU) : Result<ReqOffQuant,PDU * exn> =
     try
-      let (fc :: addrH :: addrL :: countH :: countL :: []) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: quantityHigh :: [quantityLow]) = pdu // throw exception if not an exact match
       {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
+        Address = [addressLow; addressHigh] |> tU16
+        Quantity = [quantityLow; quantityHigh] |> tU16
       } |> Ok
     with | e -> (pdu, e) |> Error
   member x.PartialSerialize () =
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-    let [countL; countH] = x.Quantity |> Util.U16ToBytes
-    let fc = FunctionCode.ReadDO.ToByte()
-    [addrH; addrL; countH; countL]
+    let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
+    let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
+    let functionCode = FunctionCode.ReadDO.ToByte()
+    [addressHigh; addressLow; quantityHigh; quantityLow]
 
 type WriteDoRequest =
   {
-    Offset : System.UInt16
+    Address : System.UInt16
     Value : bool
   }
   static member TryParse (pdu : byte list) : Result<WriteDoRequest, PDU * exn > =
     try
-      let (fc :: addrH :: addrL :: valueH :: valueL :: []) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: valueHigh :: [valueLow]) = pdu // throw exception if not an exact match
       {
-        Offset = [addrL; addrH] |> tU16
-        Value = [valueL; valueH] |> tU16 > 0us
+        Address = [addressLow; addressHigh] |> tU16
+        Value = [valueLow; valueHigh] |> tU16 > 0us
       } |> Ok
     with | e -> (pdu, e) |> Error
   member x.Serialize () =
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
+    let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
     let [valL; valH] = x.Value |> Util.BoolToUint16 |> Util.U16ToBytes
-    let fc = FunctionCode.WriteDO.ToByte()
-    [fc; addrH; addrL; valH; valL]
+    let functionCode = FunctionCode.WriteDO.ToByte()
+    [functionCode; addressHigh; addressLow; valH; valL]
 
 type WriteRegRequest =
   {
-    Offset : System.UInt16
+    Address : System.UInt16
     Value : System.UInt16
   }
   static member TryParse (pdu : byte list) : Result<WriteRegRequest, PDU * exn> =
     try
-      let (fc :: addrH :: addrL :: valueH :: valueL :: []) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: valueHigh :: [valueLow]) = pdu // throw exception if not an exact match
       {
-        Offset = [addrL; addrH] |> tU16
-        Value = [valueL; valueH] |> tU16
+        Address = [addressLow; addressHigh] |> tU16
+        Value = [valueLow; valueHigh] |> tU16
       } |> Ok
     with | e -> (pdu, e) |> Error
   member x.Serialize () =
-    let [addrL; addrH] = x.Offset |> Util.U16ToBytes
+    let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
     let [valL; valH] = x.Value |> Util.U16ToBytes
-    let fc = FunctionCode.WriteReg.ToByte()
-    [fc; addrH; addrL; valH; valL]
+    let functionCode = FunctionCode.WriteReg.ToByte()
+    [functionCode; addressHigh; addressLow; valH; valL]
 
 type WriteDosRequest =
   {
-    Offset : System.UInt16
+    Address : System.UInt16
     Quantity: System.UInt16
     // cannot be inferred, this information is needed
     // by the response
@@ -187,49 +190,49 @@ type WriteDosRequest =
   }
   static member TryParse (pdu : byte list) : Result<WriteDosRequest, PDU * exn> =
     try
-      let (fc :: addrH :: addrL :: countH :: countL :: byteCount :: values) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: byteCount :: values) = pdu // throw exception if not an exact match
       {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
+        Address = [addressLow; addressHigh] |> tU16
+        Quantity = [quantityLow; quantityHigh] |> tU16
         Values = values |> Util.bytesToBool
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
-      let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-      let [countL; countH] = x.Quantity |> Util.U16ToBytes
+      let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
       let data = x.Values |> Util.BoolsToBytes
       let byteCount = data |> List.length |> byte
-      let fc = FunctionCode.WriteDOs.ToByte()
-      [fc; addrH; addrL; countH; countL; byteCount] @ data
+      let functionCode = FunctionCode.WriteDOs.ToByte()
+      [functionCode; addressHigh; addressLow; quantityHigh; quantityLow; byteCount] @ data
 
 type WriteRegsRequest =
   {
-    Offset : System.UInt16
+    Address : System.UInt16
     Quantity : System.UInt16
     //ByteCount: byte
     Values : System.UInt16 list
   }
   static member TryParse (pdu : byte list) : Result<WriteRegsRequest,PDU * exn> =
     try
-      let (fc :: addrH :: addrL :: countH :: countL :: count :: values) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: count :: values) = pdu // throw exception if not an exact match
       if values.Length % 2 <> 0 then
         "Even number of data bytes expected" |> FormatException |> raise
 
       {
-        Offset = [addrL; addrH] |> tU16
-        Quantity = [countL; countH] |> tU16
+        Address = [addressLow; addressHigh] |> tU16
+        Quantity = [quantityLow; quantityHigh] |> tU16
         Values = values |> swapU16s |> Util.bytesToUint16
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
-      let [addrL; addrH] = x.Offset |> Util.U16ToBytes
-      let [countL; countH] = x.Quantity |> Util.U16ToBytes
+      let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
       let data = x.Values |> Util.U16sToBytes |> Util.swapU16s
       let byteCount = data |> List.length |> byte
-      let fc = FunctionCode.WriteRegs.ToByte()
-      [fc; addrH; addrL; countH; countL; byteCount] @ data
+      let functionCode = FunctionCode.WriteRegs.ToByte()
+      [functionCode; addressHigh; addressLow; quantityHigh; quantityLow; byteCount] @ data
 
-type Request =
+type RtuRequest =
   | ReadDOReq of ReqOffQuant
   | ReadDIReq of ReqOffQuant
   | ReadHRegReq of ReqOffQuant
@@ -238,15 +241,10 @@ type Request =
   | WriteRegReq of WriteRegRequest
   | WriteDOsReq of WriteDosRequest
   | WriteRegsReq of WriteRegsRequest
-  | ModErrorReq of ModError
-  static member TryParse (pdu : byte list) : Result<Request, PDU> = 
-    let (Fc :: OffsetH :: OffsetL :: Rem) = pdu
-    let functionCode = Fc |> FunctionCode.TryFromByte
-    let modError fc =
-      {
-        FunctionCode = fc
-        ExceptionCode = IllegalFunction
-      } |> ModErrorReq
+
+  static member TryParse (pdu : byte list) : Result<RtuRequest, PDU > =
+    let (functionCode :: addressHigh :: addressLow :: remainder) = pdu
+    let functionCode = functionCode |> FunctionCode.TryFromByte
     match functionCode with
     | Ok functionCode ->
       match functionCode with
@@ -254,54 +252,54 @@ type Request =
         ReqOffQuant.TryParse pdu
         |> function
            | Ok x -> x |> ReadDOReq |> Ok
-           | Error (p,e) -> modError FunctionCode.ReadDO |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.ReadDI ->
         ReqOffQuant.TryParse pdu
         |> function
            | Ok x -> x |> ReadDIReq |> Ok
-           | Error (p,e) -> modError FunctionCode.ReadDI |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.ReadHReg ->
         ReqOffQuant.TryParse pdu
         |> function
            | Ok x -> x |> ReadHRegReq |> Ok
-           | Error (p,e) -> modError FunctionCode.ReadHReg |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.ReadIReg ->
         ReqOffQuant.TryParse pdu
         |> function
            | Ok x -> x |> ReadIRegReq |> Ok
-           | Error (p,e) -> modError FunctionCode.ReadIReg |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.WriteDO ->
         WriteDoRequest.TryParse pdu
         |> function
            | Ok x -> x |> WriteDOReq |> Ok
-           | Error (p,e) -> modError FunctionCode.WriteDO |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.WriteReg ->
         WriteRegRequest.TryParse pdu
         |> function
            | Ok x -> x |> WriteRegReq |> Ok
-           | Error (p,e) -> modError FunctionCode.WriteReg |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.WriteDOs ->
         WriteDosRequest.TryParse pdu
         |> function
            | Ok x -> x |> WriteDOsReq |> Ok
-           | Error (p,e) -> modError FunctionCode.WriteDOs |> Ok
+           | Error (p,e) -> pdu |> Error
 
       | FunctionCode.WriteRegs ->
         WriteRegsRequest.TryParse pdu
         |> function
            | Ok x -> x |> WriteRegsReq |> Ok
-           | Error (p,e) -> modError FunctionCode.WriteRegs |> Ok
+           | Error (p,e) -> pdu |> Error
 
     | Error _ ->
       pdu |> Error
-  member x.Serialize () : byte list = 
-    match x with 
+  member x.Serialize () : byte list =
+    match x with
     | ReadDOReq x -> FunctionCode.ReadDO.ToByte() :: x.PartialSerialize()
     | ReadDIReq x -> FunctionCode.ReadDI.ToByte() :: x.PartialSerialize()
     | ReadHRegReq x -> FunctionCode.ReadHReg.ToByte() :: x.PartialSerialize()
@@ -310,7 +308,6 @@ type Request =
     | WriteRegReq x -> x.Serialize()
     | WriteDOsReq x -> x.Serialize()
     | WriteRegsReq x -> x.Serialize()
-    | ModErrorReq x -> x.Serialize()
 
 type ResBools =
   {
@@ -323,7 +320,7 @@ type ResBools =
 
   static member TryParse (pdu : PDU) : Result<ResBools, PDU * exn> =
     try
-      let (fc :: count :: data) = pdu // throw exception if not an exact match
+      let (functionCode :: count :: data) = pdu // throw exception if not an exact match
       {
         Status = data |> bytesToBool
       } |> Ok
@@ -341,7 +338,7 @@ type ResRegs =
 
   static member TryParse (pdu : PDU) : Result<ResRegs, PDU * exn> =
     try
-      let (fc :: count :: data) = pdu // throw exception if not an exact match
+      let (functionCode :: count :: data) = pdu // throw exception if not an exact match
       {
         Values = data |> bytesToUint16
       } |> Ok
@@ -350,21 +347,21 @@ type ResRegs =
 
 type WriteDoResponse =
   {
-    Offset: UInt16
+    Address: UInt16
     Value: bool
   }
   member x.Serialize ()  : byte list =
-    let oBytes = x.Offset |> U16ToBytes |> swapU16s
+    let oBytes = x.Address |> U16ToBytes |> swapU16s
     let oVal = x.Value |> BoolToUint16 |> U16ToBytes |> swapU16s
-    let fc = FunctionCode.WriteDO.ToByte()
-    fc :: oBytes @ oVal
+    let functionCode = FunctionCode.WriteDO.ToByte()
+    functionCode :: oBytes @ oVal
 
   static member TryParse (pdu : PDU) : Result<WriteDoResponse, PDU * exn>  =
     try
-      let (fc :: offsetH :: offsetL :: valH :: valL :: []) = pdu // throw exception if not an exact match
+      let (functionCode :: addressHigh :: addressLow :: valueHigh :: [valueLow]) = pdu // throw exception if not an exact match
       {
-        Offset = [offsetH; offsetL] |> tU16
-        Value = valH = 255uy
+        Address = [addressHigh; addressLow] |> tU16
+        Value = valueHigh = 255uy
       } |> Ok
 
     with | e -> (pdu, e) |> Error
@@ -372,26 +369,44 @@ type WriteDoResponse =
 
 type WriteRegResponse =
   {
-    Offset: UInt16
+    Address: UInt16
     Value: UInt16
   }
   member x.Serialize ()  : byte list =
-    let oBytes = x.Offset |> Util.U16ToBytes |> swapU16s
+    let oBytes = x.Address |> Util.U16ToBytes |> swapU16s
     let oVal = x.Value |> Util.U16ToBytes |> swapU16s
-    let fc = FunctionCode.WriteReg.ToByte()
-    fc :: oBytes @ oVal
+    let functionCode = FunctionCode.WriteReg.ToByte()
+    functionCode :: oBytes @ oVal
+
+  static member TryParse (pdu : PDU ) : Result<WriteRegResponse, PDU * exn> =
+    try
+      let [functionCode; addressHigh; addressLow; valueHigh; valueLow] = pdu
+      {
+        Address = [addressHigh; addressLow] |> tU16
+        Value = [valueHigh; valueLow] |> tU16
+      } |> Ok
+
+    with | e -> (pdu, e) |> Error
 
 type ResOffQuant =
   {
-    Offset: UInt16
+    Address: UInt16
     Quantity: UInt16
   }
   member x.PartialSerialize ()  : byte list =
-    let oOffset = x.Offset |> Util.U16ToBytes |> swapU16s
-    let oCount = x.Quantity |> Util.U16ToBytes |> swapU16s
-    oOffset @ oCount
+    let oAddress = x.Address |> Util.U16ToBytes |> swapU16s
+    let oQuantity = x.Quantity |> Util.U16ToBytes |> swapU16s
+    oAddress @ oQuantity
+  static member TryParse (pdu : PDU) : Result<ResOffQuant, PDU * exn> =
+    try
+      let [functionCode; addressHigh; addressLow; quantityHigh; quantityLow] = pdu
+      {
+        Address = [addressHigh; addressLow] |> tU16
+        Quantity = [quantityHigh; quantityLow] |> tU16
+      } |> Ok
+    with | e -> (pdu, e) |> Error
 
-type Response =
+type RtuResponse =
   | ReadDORes of ResBools
   | ReadDIRes of ResBools
   | ReadHRegRes of ResRegs
@@ -413,19 +428,79 @@ type Response =
     | WriteRegsRes x -> FunctionCode.WriteRegs.ToByte() :: x.PartialSerialize ()
     | ModErrorRes x -> x.Serialize ()
 
-  // todo: need to add response parsing
+  static member TryParse (pdu : byte list) : Result<RtuResponse, PDU > =
+    let (functionCode :: remainder) = pdu
+    let isError = functionCode &&& 0x80uy = 0x80uy
 
-type MbapPayload = 
-  | Response of Response
-  | Request of Request
+    match isError with
+    | true ->
+      ModError.TryParse(pdu)
+      |> function
+         | Ok x -> x |> ModErrorRes |> Ok
+         | Error (x,_) -> x |> Error
+    | false ->
+      let functionCode = functionCode |> FunctionCode.TryFromByte
 
-type Mbap =
+      match functionCode with
+      | Ok functionCode ->
+        match functionCode with
+        | FunctionCode.ReadDO ->
+          ResBools.TryParse pdu
+          |> function
+             | Ok x -> x |> ReadDORes |> Ok
+             | Error _ -> pdu |> Error
+
+        | FunctionCode.ReadDI ->
+          ResBools.TryParse pdu
+          |> function
+             | Ok x -> x |> ReadDIRes |> Ok
+             | Error _ -> pdu |> Error
+
+        | FunctionCode.ReadHReg ->
+          ResRegs.TryParse pdu
+          |> function
+             | Ok x -> x |> ReadHRegRes |> Ok
+             | Error _ -> pdu |> Error
+
+        | FunctionCode.ReadIReg ->
+          ResRegs.TryParse pdu
+          |> function
+             | Ok x -> x |> ReadIRegRes |> Ok
+             | Error _ -> pdu |> Error
+
+        | FunctionCode.WriteDO ->
+          WriteDoResponse.TryParse pdu
+          |> function
+             | Ok x -> x |> WriteDORes |> Ok
+             | _ -> pdu |> Error
+
+        | FunctionCode.WriteReg ->
+          WriteRegResponse.TryParse pdu
+          |> function
+             | Ok x -> x |> WriteRegRes |> Ok
+             | _ -> pdu |> Error
+
+        | FunctionCode.WriteDOs ->
+          ResOffQuant.TryParse pdu
+          |> function
+             | Ok x -> x |> WriteDOsRes |> Ok
+             | _ -> pdu |> Error
+
+        | FunctionCode.WriteRegs ->
+          ResOffQuant.TryParse pdu
+          |> function
+             | Ok x -> x |> WriteRegsRes |> Ok
+             | _ -> pdu |> Error
+      | Error _ -> pdu |> Error
+
+
+type MbapReq =
   {
     TransactionIdentifier : TransactionIdentifier
     ProtocolIdentifier : ProtocolIdentifier
     Length : Length
     UnitIdentifier : UnitIdentifier
-    Payload : MbapPayload
+    Request: RtuRequest
   }
   member x.Serialize ()  : byte list =
     // The transaction and protocol identifiers are reversed
@@ -433,23 +508,124 @@ type Mbap =
     let pi = x.ProtocolIdentifier |> U16ToBytes |> swapU16s
     let len = x.Length |> U16ToBytes |> swapU16s
     let uid = x.UnitIdentifier
+    let req = x.Request.Serialize ()
 
-    ti @ pi @ len @ [uid]
+    ti @ pi @ len @ [uid] @ req
+  static member TryParse (frame : byte list) : Result<MbapReq, byte list * exn> =
+    try
+      // the smallest frame is 12 bytes long
+      if frame.Length < 12 then
+        FormatException("Frame length less than the minimum of 12") |> raise
 
-  static member wrapPdu (reqMbap : Mbap) (pdu : PDU) : byte list =
-    let nlen = pdu |> List.length |> uint16 |> (+)1us
-    let nMbap =
-      {
-        TransactionIdentifier = reqMbap.TransactionIdentifier
-        ProtocolIdentifier = reqMbap.ProtocolIdentifier
-        Length = nlen
-        UnitIdentifier = reqMbap.UnitIdentifier
-      }
-    nMbap.Serialize () @ pdu @ []
+      let (
+           tranIdHigh
+        :: tranIdLow
+        :: protocolHigh
+        :: protocolLow
+        :: lengthHigh
+        :: lengthLow
+        :: unitIdentifier
+        :: modPdu) = frame
+
+      let transactionIdentifier = [tranIdLow; tranIdHigh] |> tU16
+      let protocol = [protocolLow; protocolHigh] |> tU16
+      let length = [lengthLow; lengthHigh; 0uy; 0uy] |> tI32
+      let lengthU = [lengthLow; lengthHigh] |> tU16
+
+      // verify the length
+      if (frame.Length - 6) <> length then
+        FormatException("Frame is reporting a different length than received") |> raise
+
+      if protocolLow <> 0uy || protocolHigh <> 0uy then
+        FormatException("Protocol identifier is expected to be zero") |> raise
+
+      let modReq = RtuRequest.TryParse modPdu
+
+      match modReq with
+      | Error _ -> (frame, (exn "Unable to parse modbus pdu")) |> Error
+      | Ok m ->
+          {
+            TransactionIdentifier = transactionIdentifier
+            ProtocolIdentifier = protocol
+            Length = lengthU
+            UnitIdentifier = unitIdentifier
+            Request = m
+          } |> Ok
+
+    with | e -> (frame, e) |> Error
+
+type MbapRes =
+  {
+    TransactionIdentifier : TransactionIdentifier
+    ProtocolIdentifier : ProtocolIdentifier
+    UnitIdentifier : UnitIdentifier
+    Response : RtuResponse
+  }
+  member x.Serialize ()  : byte list =
+    // The transaction and protocol identifiers are reversed
+    let ti = x.TransactionIdentifier |> U16ToBytes |> swapU16s
+    let pi = x.ProtocolIdentifier |> U16ToBytes |> swapU16s
+    let uid = x.UnitIdentifier
+    let res = x.Response.Serialize ()
+    let len =
+      res
+      |> List.length
+      |> (+) 1
+      |> Convert.ToUInt16
+      |> U16ToBytes
+      |> swapU16s
+
+    ti @ pi @ len @ [uid] @ res
+
+  static member TryParse (frame : byte list) : Result<MbapRes, byte list * exn> =
+    try
+      // the smallest frame is 12 bytes long
+      if frame.Length < 12 then
+        FormatException("Frame length less than the minimum of 12") |> raise
+
+      let (
+           tranIdHigh
+        :: tranIdLow
+        :: protocolHigh
+        :: protocolLow
+        :: lengthHigh
+        :: lengthLow
+        :: unitIdentifier
+        :: modPdu) = frame
+
+      let transactionIdentifier = [tranIdLow; tranIdHigh] |> tU16
+      let protocol = [protocolLow; protocolHigh] |> tU16
+      let length = [lengthLow; lengthHigh; 0uy; 0uy] |> tI32
+      let lengthU = [lengthLow; lengthHigh] |> tU16
+
+      // verify the length
+      if (frame.Length - 6) <> length then
+        FormatException("Frame is reporting a different length than received") |> raise
+
+      if protocolLow <> 0uy || protocolHigh <> 0uy then
+        FormatException("Protocol identifier is expected to be zero") |> raise
+
+      let modRes = RtuResponse.TryParse modPdu
+
+      match modRes with
+      | Error _ -> (frame, (exn "Unable to parse modbus pdu")) |> Error
+      | Ok m ->
+          {
+            TransactionIdentifier = transactionIdentifier
+            ProtocolIdentifier = protocol
+            UnitIdentifier = unitIdentifier
+            Response = m
+          } |> Ok
+
+    with | e -> (frame, e) |> Error
+
+type MbapFunc = MbapReq -> Result<MbapRes, unit>
+// this is weak, instead of Error of unit, should be error of exception or something
+// todo: improve this ^^^
 
 // delegates that are called for each type of function
-type ModFunc = Request -> Response
-module ModFunc = 
+type ModFunc = RtuRequest -> RtuResponse
+module ModFunc =
   let private expected q =
     q / 8us + 1us
     |> fun x -> [1us..x]
@@ -462,62 +638,62 @@ module ModFunc =
     |> List.map(fun _ -> 0us)
     |> fun x -> 1us :: (x |> List.tail)
 
-  module Default = 
-    module Success = 
-      let readDOFunc (req : ReqOffQuant) : Response = 
+  module Default =
+    module Success =
+      let readDOFunc (req : ReqOffQuant) : RtuResponse =
         {
           Status = expected req.Quantity
         } |> ReadDORes
-      let readDIFunc (req : ReqOffQuant) : Response = 
+      let readDIFunc (req : ReqOffQuant) : RtuResponse =
         {
           Status = expected req.Quantity
         } |> ReadDIRes
-      let readHRegFunc (req : ReqOffQuant) : Response = 
+      let readHRegFunc (req : ReqOffQuant) : RtuResponse =
         {
           Values = expected16 req.Quantity
         } |> ReadHRegRes
-      let readIRegFunc (req : ReqOffQuant) : Response = 
+      let readIRegFunc (req : ReqOffQuant) : RtuResponse =
         {
           Values = expected16 req.Quantity
         } |> ReadIRegRes
-      let writeDOFunc (req : WriteDoRequest) : Response = 
-        let r : WriteDoResponse = 
+      let writeDOFunc (req : WriteDoRequest) : RtuResponse =
+        let r : WriteDoResponse =
           {
-            Offset = req.Offset
+            Address = req.Address
             Value = req.Value
-          } 
+          }
         r |> WriteDORes
-      let writeRegFunc (req : WriteRegRequest) : Response = 
+      let writeRegFunc (req : WriteRegRequest) : RtuResponse =
         {
-          Offset = req.Offset
+          Address = req.Address
           Value = req.Value
         } |> WriteRegRes
-      
-      let writeDOsFunc (req : WriteDosRequest) : Response = 
+
+      let writeDOsFunc (req : WriteDosRequest) : RtuResponse =
         {
-          Offset = req.Offset
+          Address = req.Address
           Quantity = req.Quantity
         } |> WriteDOsRes
 
-      let writeRegsFunc (req : WriteRegsRequest) : Response = 
+      let writeRegsFunc (req : WriteRegsRequest) : RtuResponse =
         {
-          Offset = req.Offset
+          Address = req.Address
           Quantity = req.Quantity
         } |> WriteRegsRes
 
   // the defaults do nothing, all they do is return is
   // the expected corresponding successful response
   let defaultSuccesses =
-    let r (req : Request) : Response = 
+    let r (req : RtuRequest) : RtuResponse =
       match req with
-      | ReadDOReq x -> Default.Success.readDOFunc x 
-      | ReadDIReq x -> Default.Success.readDIFunc x 
-      | ReadHRegReq x -> Default.Success.readHRegFunc x 
-      | ReadIRegReq x -> Default.Success.readIRegFunc x 
-      | WriteDOReq x -> Default.Success.writeDOFunc x 
-      | WriteRegReq x -> Default.Success.writeRegFunc x 
-      | WriteDOsReq x -> Default.Success.writeDOsFunc x 
-      | WriteRegsReq x -> Default.Success.writeRegsFunc x  
+      | ReadDOReq x -> Default.Success.readDOFunc x
+      | ReadDIReq x -> Default.Success.readDIFunc x
+      | ReadHRegReq x -> Default.Success.readHRegFunc x
+      | ReadIRegReq x -> Default.Success.readIRegFunc x
+      | WriteDOReq x -> Default.Success.writeDOFunc x
+      | WriteRegReq x -> Default.Success.writeRegFunc x
+      | WriteDOsReq x -> Default.Success.writeDOsFunc x
+      | WriteRegsReq x -> Default.Success.writeRegsFunc x
 
     r
 
@@ -525,7 +701,6 @@ type ModbusServerConf =
   {
     Port : System.UInt32
     IPAddress : System.Net.IPAddress
-    SlaveId: byte
   }
   static member TryParse (str : string) : Result<ModbusServerConf, string> =
     // string expected in the format tcp://127.0.0.1:502
@@ -544,7 +719,6 @@ type ModbusServerConf =
           {
             Port = resPort.Value
             IPAddress = resIP.Value
-            SlaveId = 1uy
           } |> Ok
         | _ -> Error str
       | _ -> Error str

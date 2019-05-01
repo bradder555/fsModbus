@@ -79,7 +79,7 @@ let tests =
         testList "WriteDoRequest" [
             test "LSB Only true" {
                 let t : WriteDoRequest = {
-                    Offset = 32us
+                    Address = 32us
                     Value = true
                 }
                 Expect.equal
@@ -89,7 +89,7 @@ let tests =
             }
             test "LSB Only false" {
                 let t : WriteDoRequest = {
-                    Offset = 32us
+                    Address = 32us
                     Value = false
                 }
                 Expect.equal
@@ -99,7 +99,7 @@ let tests =
             }
             test "LSB&MSB true" {
                 let t : WriteDoRequest = {
-                    Offset = 512us + 32us
+                    Address = 512us + 32us
                     Value = true
                 }
                 Expect.equal
@@ -111,7 +111,7 @@ let tests =
         testList "WriteRegRequest" [
             test "LSB Only" {
                 let t : WriteRegRequest = {
-                    Offset = (0x00us <<< 8) + 0x32us
+                    Address = (0x00us <<< 8) + 0x32us
                     Value = (0x00us <<< 8) + 0x55us
                 }
                 Expect.equal
@@ -121,7 +121,7 @@ let tests =
             }
             test "LSBs & MSB" {
                 let t : WriteRegRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Value = (0xA9us <<< 8) + 0x55us
                 }
                 Expect.equal
@@ -134,7 +134,7 @@ let tests =
         testList "WriteDosRequest" [
             test "6 values" {
                 let t : WriteDosRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 06us
                     Values = [true; true; true; true; false; false; false; false;]
                 }
@@ -145,7 +145,7 @@ let tests =
             }
             test "8 values" {
                 let t : WriteDosRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 08us
                     Values = [true; true; true; true; false; false; false; true;]
                 }
@@ -156,7 +156,7 @@ let tests =
             }
             test "12 values" {
                 let t : WriteDosRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 12us
                     Values =
                       [
@@ -186,7 +186,7 @@ let tests =
             }
             test "20 values" {
                 let t : WriteDosRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 20us
                     Values =
                       [
@@ -225,7 +225,7 @@ let tests =
             }
             test "240 values" {
                 let t : WriteDosRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = 1920us
                     Values = [0..1919] |> List.map (fun x -> x % 2 = 0)
                 }
@@ -242,7 +242,7 @@ let tests =
         testList "WriteRegsRequest" [
             test "1 value" {
                 let t : WriteRegsRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 01us
                     Values = [1us]
                 }
@@ -253,7 +253,7 @@ let tests =
             }
             test "2 large values" {
                 let t : WriteRegsRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 02us
                     Values = [33003us; 18711us] // head = least sig
                     // 80 EB 49 17
@@ -266,7 +266,7 @@ let tests =
             test "120 values" {
                 let v = [1us..120us] |> List.map ((*) 200us) // head = least sig
                 let t : WriteRegsRequest = {
-                    Offset = (0x66us <<< 8) + 0x32us
+                    Address = (0x66us <<< 8) + 0x32us
                     Quantity = (0x00us <<< 8) + 120us
                     Values = v
                 }
@@ -280,11 +280,11 @@ let tests =
 
         testList "WriteDoResponse" [
             // the client needs to keep track
-            // of the transaction, the offset and requested quantity
+            // of the transaction, the Address and requested quantity
             // so much complexity to save a few bytes!
             test "true" {
                 let t : WriteDoResponse = {
-                    Offset = 0x20us
+                    Address = 0x20us
                     Value = true
                 }
 
@@ -305,7 +305,7 @@ let tests =
 
             test "false" {
                 let t : WriteDoResponse = {
-                    Offset = 0x20us
+                    Address = 0x20us
                     Value = false
                 }
 
@@ -326,7 +326,7 @@ let tests =
 
             test "true high address" {
                 let t : WriteDoResponse = {
-                    Offset = 0x2120us
+                    Address = 0x2120us
                     Value = true
                 }
 
@@ -348,11 +348,11 @@ let tests =
 
         testList "WriteRegResponse" [
             // the client needs to keep track
-            // of the transaction, the offset and requested quantity
+            // of the transaction, the Address and requested quantity
             // so much complexity to save a few bytes!
-            test "high offset and value" {
+            test "high Address and value" {
                 let t : WriteRegResponse = {
-                    Offset = 0x3D20us
+                    Address = 0x3D20us
                     Value = 0xABCDus
                 }
 
