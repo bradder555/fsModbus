@@ -7,19 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="LoggingTypes.fs"/>
+    <Compile Include="Logging.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="ModbusTypes.fs" />
     <Compile Include="Modbus.fs" />
-    <Compile Include="tests/Util.fs"/>
-    <Compile Include="tests/Serialization.fs"/>
-    <Compile Include="tests/Deserialization.fs"/>
-    <Compile Include="tests/Client.fs" />
-    <Compile Include="tests/tests.fs" />
+    <Compile Include="GracefulShutdown.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="expecto" Version="8.9.1" />
-    <PackageReference Include="expecto.hopac" Version="8.9.1" />
     <PackageReference Include="hopac" Version="0.4.1" />
     <PackageReference Include="system.io" Version="4.3.0" />
     <PackageReference Include="system.io.ports" Version="4.5.0" />

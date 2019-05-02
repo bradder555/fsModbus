@@ -310,6 +310,51 @@ type RtuRequest =
     | WriteRegReq x -> x.Serialize()
     | WriteDOsReq x -> x.Serialize()
     | WriteRegsReq x -> x.Serialize()
+  // this 'logging' knowledge, it's easier to put here
+  // will probably be scoped to a separate logging file one day
+  member x.ToFields () : Map<string, obj> =
+    match x with
+      | ReadDOReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Read DO" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "quantity" (x.Quantity :> obj)
+      | ReadDIReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Read DI" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "quantity" (x.Quantity :> obj)
+      | ReadHRegReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Read HReg" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "quantity" (x.Quantity :> obj)
+      | ReadIRegReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Read IReg" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "quantity" (x.Quantity :> obj)
+      | WriteDOReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Write DO" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "values" (x.Value :> obj)
+      | WriteRegReq x -> 
+        Map.empty 
+        |> Map.add "function-code" ("Write HReg" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "values" (x.Value :> obj)      
+      | WriteDOsReq x ->
+        Map.empty
+        |> Map.add "function-code" ("Write DOs" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "values" (x.Values :> obj)         
+      | WriteRegsReq x -> 
+        Map.empty
+        |> Map.add "function-code" ("Write HRegs" :> obj)
+        |> Map.add "address" (x.Address :> obj)
+        |> Map.add "values" (x.Values :> obj)       
+    
 
 type ResBools =
   {
@@ -429,6 +474,50 @@ type RtuResponse =
     | WriteDOsRes x -> FunctionCode.WriteDOs.ToByte() :: x.PartialSerialize ()
     | WriteRegsRes x -> FunctionCode.WriteRegs.ToByte() :: x.PartialSerialize ()
     | ModErrorRes x -> x.Serialize ()
+
+  member x.ToFields () : Map<string, obj> =
+    match x with
+    | ReadDORes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Read DO" :> obj)
+      |> Map.add "values" (x.Status :> obj)
+    | ReadDIRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Read DI" :> obj)
+      |> Map.add "values" (x.Status :> obj)
+    | ReadHRegRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Read HReg" :> obj)
+      |> Map.add "values" (x.Values :> obj)
+    | ReadIRegRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Read IReg" :> obj)
+      |> Map.add "values" (x.Values :> obj)
+    | WriteDORes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Write DO" :> obj)
+      |> Map.add "values" (x.Value :> obj)
+      |> Map.add "address" (x.Address :> obj)
+    | WriteRegRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Write HReg" :> obj)
+      |> Map.add "values" (x.Value :> obj)
+      |> Map.add "address" (x.Address :> obj)    
+    | WriteDOsRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Write DOs" :> obj)
+      |> Map.add "quantity" (x.Quantity :> obj)
+      |> Map.add "address" (x.Address :> obj)    
+    | WriteRegsRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Write HRegs" :> obj)
+      |> Map.add "address" (x.Address :> obj)
+      |> Map.add "quantity" (x.Quantity :> obj)    
+    | ModErrorRes x -> 
+      Map.empty 
+      |> Map.add "function-code" ("Modbus Error" :> obj)
+      |> Map.add "error-code" (x.FunctionCode :> obj)
+      |> Map.add "exception-code" (x.ExceptionCode :> obj)    
 
   static member TryParse (pdu : byte list) : Result<RtuResponse, PDU > =
     let (functionCode :: remainder) = pdu

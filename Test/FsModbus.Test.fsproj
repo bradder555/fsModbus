@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Library/FsModbus.fsproj"/>
+    <Compile Include="Client.fs" />
+    <Compile Include="Deserialization.fs" />
+    <Compile Include="Serialization.fs" />
+    <Compile Include="Util.fs" />
+    <Compile Include="Tests.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="expecto" Version="8.9.1" />
+    <PackageReference Include="expecto.hopac" Version="8.9.1" />
+    <PackageReference Include="hopac" Version="0.4.1" />
+  </ItemGroup>
+
+</Project>

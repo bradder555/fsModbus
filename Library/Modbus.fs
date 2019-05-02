@@ -9,28 +9,41 @@ open Hopac.Infixes
 open System
 open System.Net
 open System.Net.Sockets
+open LoggingTypes 
 
-let private disposeSocket (handle : Socket) =
-  try
-    handle.Close(0)
-  with | _ -> ()
-
-  try
-    handle.Disconnect(true)
-  with | _ -> ()
-
-  try
-    handle.Dispose()
-  with | _ -> ()
 
 module Server =
-  let build (conf : ModbusServerConf) (actionFunc : MbapFunc) =
+
+  let build (logger : Logger ) (conf : ModbusServerConf) (actionFunc : MbapFunc) =
+    let disposeSocket (handle : Socket) =
+      job {
+        let remote = handle.RemoteEndPoint :?> IPEndPoint
+        let msg = 
+          Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
+          |> Message.AddField "remote-ip" remote.Address
+          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          |> Message.AddField "action" "client-disconnect"
+        do! logger.Log msg
+
+        try
+          handle.Close(0)
+        with | _ -> ()
+
+        try
+          handle.Disconnect(true)
+        with | _ -> ()
+
+        try
+          handle.Dispose()
+        with | _ -> ()
+      }
 
     // handle receive is only ever called from the server function
     // should not be in the external API, instead of using private, better
     // to scope it to this function exclusively
     let handleRec (handle : Socket) (inBuff : ArraySegment<byte>) (bufferLen : int) =
       job {
+        let remote = handle.RemoteEndPoint :?> IPEndPoint
         try
           match handle.Connected && bufferLen > 0 with
             | true ->
@@ -38,10 +51,31 @@ module Server =
               let reqMbap = MbapReq.TryParse frame
               match reqMbap with
               | Ok r ->
+                let msg =
+                  Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                  |> Message.AddField "remote-ip" remote.Address
+                  |> Message.AddField "remote-port" remote.Port
+                  |> Message.AddFields (r.Request.ToFields ())
+                  |> Message.AddField "transaction" r.TransactionIdentifier
+                  |> Message.AddField "action" "request"
+                  |> Message.AddField "originator" "client"
+
+                do! logger.Log msg
                 let res = actionFunc r
                 match res with
                 | Error _ -> exn "error responding to request" |> raise
                 | Ok res ->
+                  let msg =
+                    Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                    |> Message.AddField "remote-ip" remote.Address
+                    |> Message.AddField "remote-port" remote.Port
+                    |> Message.AddFields (res.Response.ToFields ())
+                    |> Message.AddField "transaction" res.TransactionIdentifier
+                    |> Message.AddField "action" "response"
+                    |> Message.AddField "originator" "server"
+
+                  do! logger.Log msg                  
+
                   let buff =
                     res.Serialize()
                     |> List.toArray
@@ -55,7 +89,7 @@ module Server =
               exn "not connected to client" |> raise
         with
         | _ ->
-          return disposeSocket handle
+          return! disposeSocket handle
       }
 
     let rec handleReceive (handle : Socket) =
@@ -77,13 +111,21 @@ module Server =
     let s =
       job {
         let! handler = listener.AcceptAsync()
+        let remote = handler.RemoteEndPoint :?> IPEndPoint
+        let msg = 
+          Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}" 
+          |> Message.AddField "action" "client-connect"
+          |> Message.AddField "remote-ip" remote.Address
+          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+
+        do! logger.Log msg
         do! handleReceive handler |> Job.queue
       } |> Job.forever |> Promise.queue |> Alt.prepare
 
     Alt.withNackJob <| fun nack ->
       Job.start(
         nack
-        >>- fun () ->
+        >>= fun () ->
           disposeSocket listener
       ) >>-. s
 

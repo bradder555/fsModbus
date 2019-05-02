@@ -4,12 +4,11 @@ open Hopac
 open Hopac.Infixes
 open ModbusTypes
 open System
+open GracefulShutdown 
+open LoggingTypes
 
 [<EntryPoint>]
 let main argv =
-  // will probably move testing into a separate project
-  let shouldTest = argv |> Seq.tryFind (fun x -> x.ToLower() = "test") |> Option.isSome
-  let runApp = argv |> Seq.tryFind (fun x -> x.ToLower() = "run") |> Option.isSome
 
   let conf =
     argv
@@ -102,7 +101,6 @@ let main argv =
 
   let actionFunc : MbapFunc =
     let r (req : MbapReq ) : Result<MbapRes, unit> =
-
       match req.UnitIdentifier with
       | 0uy ->
         // we're only interested in one unit, which is '0',
@@ -120,53 +118,21 @@ let main argv =
       | _ -> () |> Error
     r
 
-  // this is a bit hokey but can't think of an alternative
-  let finished = IVar()
+  let gracefulShutdown = GracefulShutdown.Build()
 
-  let gracefulShutdown : Alt<unit> =
+  let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
+  let consoleLogger = Logging.ConsoleEndpoint.build () |> Hopac.run
+  let logger = 
+    Logger.New()
+    |> Logger.Add "verboseConsole" consoleLogger
 
-    fun nack -> job {
-        let c = IVar()
-        do!
-          job {
-            Console.ReadLine() |> ignore
-            printfn "enter pressed"
-            do! IVar.tryFill c ()
-          } |> Job.queueIgnore
-
-
-        do!
-          job {
-            AppDomain.CurrentDomain.ProcessExit.Add (
-              fun e ->
-                () |> IVar.tryFill c |> run
-                IVar.read finished |> run // block here to allow the application to close
-                ()
-            )
-
-          }
-        // i don't like it, but Cntl+c doesn't work on dotnet core
-        // this is because it kills the dotnet process, not our process
-        (*
-        Console.CancelKeyPress.Add (
-          fun e ->
-          printfn "control + c pressed"
-          e.Cancel <- true
-          exitEvent.Set() |> ignore
-          () |> IVar.tryFill c |> start
-        )*)
-        return IVar.read c ^-> fun _ -> printfn "gracefully shutting down"
-    } |> Alt.withNackJob
-
-  let conf = conf |> function | Ok conf -> conf
-  let server = Modbus.Server.build conf actionFunc
+  let server = Modbus.Server.build logger conf actionFunc
   job {
     do! Alt.choose [
-      gracefulShutdown
+      gracefulShutdown.Alt
       server
     ]
   } |> Hopac.run
 
-  // horrible global to tell processexit that the app has finished gracefully
-  IVar.tryFill finished () |> start
+  gracefulShutdown.Finished()
   0
