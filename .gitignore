@@ -1,8 +1,3 @@
-Example/bin/**
-Example/obj/**
-Library/bin/**
-Library/obj/**
-Docker*/
-Docker*
-
-obj/**
+**/bin/**
+**/obj/**
+**/Docker*/
