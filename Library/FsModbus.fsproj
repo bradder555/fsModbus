@@ -7,6 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="LoggingTypes.fs"/>
+    <Compile Include="Logging.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="ModbusTypes.fs" />
     <Compile Include="Modbus.fs" />

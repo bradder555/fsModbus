@@ -5,6 +5,7 @@ open Hopac.Infixes
 open ModbusTypes
 open System
 open GracefulShutdown 
+open LoggingTypes
 
 [<EntryPoint>]
 let main argv =
@@ -100,7 +101,6 @@ let main argv =
 
   let actionFunc : MbapFunc =
     let r (req : MbapReq ) : Result<MbapRes, unit> =
-
       match req.UnitIdentifier with
       | 0uy ->
         // we're only interested in one unit, which is '0',
@@ -120,10 +120,13 @@ let main argv =
 
   let gracefulShutdown = GracefulShutdown.Build()
 
-
   let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
-  
-  let server = Modbus.Server.build conf actionFunc
+  let consoleLogger = Logging.ConsoleEndpoint.build () |> Hopac.run
+  let logger = 
+    Logger.New()
+    |> Logger.Add "verboseConsole" consoleLogger
+
+  let server = Modbus.Server.build logger conf actionFunc
   job {
     do! Alt.choose [
       gracefulShutdown.Alt
