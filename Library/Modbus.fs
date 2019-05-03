@@ -18,12 +18,12 @@ module Server =
     let disposeSocket (handle : Socket) =
       job {
         let remote = handle.RemoteEndPoint :?> IPEndPoint
-        let msg = 
+        do! 
           Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
-          |> Message.AddField "remote-ip" remote.Address
-          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
-          |> Message.AddField "action" "client-disconnect"
-        do! logger.Log msg
+          >>- Message.AddField "remote-ip" remote.Address
+          >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          >>- Message.AddField "action" "client-disconnect"
+          >>= logger.Log
 
         try
           handle.Close(0)
@@ -51,30 +51,29 @@ module Server =
               let reqMbap = MbapReq.TryParse frame
               match reqMbap with
               | Ok r ->
-                let msg =
+                do!
                   Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
-                  |> Message.AddField "remote-ip" remote.Address
-                  |> Message.AddField "remote-port" remote.Port
-                  |> Message.AddFields (r.Request.ToFields ())
-                  |> Message.AddField "transaction" r.TransactionIdentifier
-                  |> Message.AddField "action" "request"
-                  |> Message.AddField "originator" "client"
+                  >>- Message.AddField "remote-ip" remote.Address
+                  >>- Message.AddField "remote-port" remote.Port
+                  >>- Message.AddFields (r.Request.ToFields ())
+                  >>- Message.AddField "transaction" r.TransactionIdentifier
+                  >>- Message.AddField "action" "request"
+                  >>- Message.AddField "originator" "client"
+                  >>= logger.Log
 
-                do! logger.Log msg
                 let res = actionFunc r
                 match res with
                 | Error _ -> exn "error responding to request" |> raise
                 | Ok res ->
-                  let msg =
+                  do!
                     Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
-                    |> Message.AddField "remote-ip" remote.Address
-                    |> Message.AddField "remote-port" remote.Port
-                    |> Message.AddFields (res.Response.ToFields ())
-                    |> Message.AddField "transaction" res.TransactionIdentifier
-                    |> Message.AddField "action" "response"
-                    |> Message.AddField "originator" "server"
-
-                  do! logger.Log msg                  
+                    >>- Message.AddField "remote-ip" remote.Address
+                    >>- Message.AddField "remote-port" remote.Port
+                    >>- Message.AddFields (res.Response.ToFields ())
+                    >>- Message.AddField "transaction" res.TransactionIdentifier
+                    >>- Message.AddField "action" "response"
+                    >>- Message.AddField "originator" "server"
+                    >>= logger.Log
 
                   let buff =
                     res.Serialize()
@@ -112,13 +111,13 @@ module Server =
       job {
         let! handler = listener.AcceptAsync()
         let remote = handler.RemoteEndPoint :?> IPEndPoint
-        let msg = 
+        do! 
           Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}" 
-          |> Message.AddField "action" "client-connect"
-          |> Message.AddField "remote-ip" remote.Address
-          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          >>- Message.AddField "action" "client-connect"
+          >>- Message.AddField "remote-ip" remote.Address
+          >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          >>= logger.Log
 
-        do! logger.Log msg
         do! handleReceive handler |> Job.queue
       } |> Job.forever |> Promise.queue |> Alt.prepare
 

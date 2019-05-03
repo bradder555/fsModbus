@@ -89,13 +89,15 @@ type Message =
     DateTime : DateTime'
   }
   static member Simple level message = 
-    {
-      LogLevel = level
-      Message = message
-      Tags = []
-      Fields = Map.empty
-      DateTime = (DateTime'.Now())
-    }
+    DateTime'.Now()
+    >>- fun x -> 
+      {
+        LogLevel = level
+        Message = message
+        Tags = []
+        Fields = Map.empty
+        DateTime = x
+      }
   static member AddField (key : string) (o : obj) (x : Message)= 
     {
       LogLevel = x.LogLevel
