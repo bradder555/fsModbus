@@ -22,13 +22,14 @@
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            "program": "${workspaceFolder}/Example/bin/Debug/netcoreapp2.2/FsModbus.Example.dll",
-            "args": ["test"],
+            "program": "${workspaceFolder}/Test/bin/Debug/netcoreapp2.2/FsModbus.Test.dll",
+            "args": [],
             "cwd": "${workspaceFolder}",
             "console": "internalConsole",
             "stopAtEntry": false,
             "internalConsoleOptions": "openOnSessionStart"
-        },       {
+        },       
+        {
             "name": ".NET Core Launch (web)",
             "type": "coreclr",
             "request": "launch",
