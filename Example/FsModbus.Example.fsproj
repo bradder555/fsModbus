@@ -5,6 +5,12 @@
     <TargetFramework>netcoreapp2.2</TargetFramework>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <VersionPrefix>"$(version)"</VersionPrefix>
+    <authors>Brad</authors>
+    <owners>Brad</owners>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <description>An opinionated implementation of a modbus server and client</description>
+    <PackageProjectUrl>https://github.com/bradder555/fsModbus</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

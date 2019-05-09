@@ -12,7 +12,7 @@ open Hopac.Infixes
 open ModbusTypes
 open GracefulShutdown
 
-open LoggingTypes
+open FsLoggingTypes
 open System.Net.NetworkInformation
 
 
@@ -175,7 +175,8 @@ let clientConf : ModbusTypes.ModbusClientConf =
     SlaveId = 0
   }
 
-let consoleLogger = Logging.ConsoleEndpoint.build () |> Hopac.run
+
+let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
 let logger = 
   Logger.New()
   |> Logger.Add "verboseConsole" consoleLogger

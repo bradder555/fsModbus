@@ -9,7 +9,7 @@ open Hopac.Infixes
 open System
 open System.Net
 open System.Net.Sockets
-open LoggingTypes 
+open FsLoggingTypes 
 
 let disposeSocket (logger : Logger) (handle : Socket) =
   job {
