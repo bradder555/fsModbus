@@ -4,11 +4,15 @@
     <TargetFramework>netcoreapp2.2</TargetFramework>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <VersionPrefix>"$(version)"</VersionPrefix>
+    <authors>Brad</authors>
+    <owners>Brad</owners>
+    <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
+    <description>An opinionated implementation of a modbus server and client</description>
+    <PackageProjectUrl>https://github.com/bradder555/fsModbus</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="LoggingTypes.fs"/>
-    <Compile Include="Logging.fs" />
     <Compile Include="Util.fs" />
     <Compile Include="ModbusTypes.fs" />
     <Compile Include="Modbus.fs" />
@@ -16,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="FsLogging" Version="1.0.2" />
     <PackageReference Include="hopac" Version="0.4.1" />
     <PackageReference Include="system.io" Version="4.3.0" />
     <PackageReference Include="system.io.ports" Version="4.5.0" />
