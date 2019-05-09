@@ -7,18 +7,58 @@ open System.Net
 open System.Net.Sockets
 
 open Hopac
+open Hopac.Infixes
 
 open ModbusTypes
+open GracefulShutdown
 
-(* -- the following doesn't work -- replaced by hack
+open LoggingTypes
+open System.Net.NetworkInformation
+
+
 // get a free port for testing purposes
-let t = TcpListener(IPAddress.Loopback, 0)
-t.Start()
-let port = (t.LocalEndpoint :?> IPEndPoint).Port
-t.Stop()
-*)
+let getFreePort () = 
+  job {
+    let mapIps (x : IPEndPoint seq )= 
+      x 
+      |> Seq.toList
+      |> List.map (fun x -> x.Port)
 
-let port = 30114
+    let ipProps = 
+      IPGlobalProperties
+        .GetIPGlobalProperties()
+
+    let tcpConnections = 
+      ipProps
+        .GetActiveTcpConnections()
+      |> Seq.map (fun x -> x.LocalEndPoint)
+      |> mapIps
+
+    let tcpListeners = 
+      ipProps
+        .GetActiveTcpListeners()
+      |> mapIps
+
+    let udpListeners = 
+      ipProps
+        .GetActiveUdpListeners()
+      |> mapIps
+
+    let usedPorts =
+      tcpConnections @ tcpListeners @ udpListeners
+      |> List.fold (fun a n -> a |> Map.add n () ) Map.empty
+      |> Map.toList
+      |> List.map fst
+
+    let ourPortRange = [1025 .. 30000]
+
+    return 
+      ourPortRange 
+      |> List.except usedPorts
+      |> List.head
+  }
+
+let port = getFreePort () |> Hopac.run
 
 let mutable dis = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
 let mutable dos = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
@@ -135,52 +175,64 @@ let clientConf : ModbusTypes.ModbusClientConf =
     SlaveId = 0
   }
 
+let consoleLogger = Logging.ConsoleEndpoint.build () |> Hopac.run
+let logger = 
+  Logger.New()
+  |> Logger.Add "verboseConsole" consoleLogger
+
 let tests =
   testList "client" [
-    (*
+    
     test "DOs roundtrip" {
       let testData = [true; true; true; false; false; true]
-      let res =
+      let address = 2 |> Convert.ToUInt16
+      let outRes = IVar()
+
+      let gracefulShutdown = GracefulShutdown.Build()
+      let server = Modbus.Server.build logger serverConf actionFunc
+
+      let actions =
         job {
-          // set up the server
-          let cancelServerI : IVar<unit> = IVar()
-          let cancelServer = cancelServerI |> IVar.read
-          do! Modbus.Server.build serverConf actionFunc
-
-          // set up the client
-          let cancelClientI : IVar<unit> = IVar()
-          let cancelClient = cancelClientI |> IVar.read
-          let! modClient = Modbus.Client.build clientConf
-
+          let! modClient = Modbus.Client.build logger clientConf
           // write values to DOs
-          let offset = 2 |> Convert.ToUInt16
+          
           let ivar = IVar()
-          do! Ch.give modClient.WriteDOs ((offset, testData), ivar)
-          let! res = ivar |> IVar.read
-          match res with
-          | Error e -> raise e
-          | _ -> ignore
+          do! Ch.give modClient.WriteDOs ((address, testData), ivar)
+          let! res1 = ivar |> IVar.read
+          let res1 = 
+            match res1 with
+            | Error e -> raise e
+            | Ok r -> r
 
           // read values from DOs
           let ivar = IVar()
           let rdo : ReqOffQuant = {
-            Address = 2 |> Convert.ToUInt16
+            Address = address
             Quantity = 6 |> Convert.ToUInt16
           }
           do! Ch.give modClient.ReadDOs (rdo, ivar)
-          let! res = ivar |> IVar.read
-          match res with
-          | Error e -> raise e
-          | _ -> ignore
+          let! res2 = ivar |> IVar.read
+          let res2 = 
+            match res2 with
+            | Error e -> raise e
+            | Ok r -> r 
 
-          let res = res |> function | Ok r -> r // okay to be incomplete
+          do! res2 |> IVar.fill outRes
+        } |> Promise.queue |> Alt.prepare
 
-          do! IVar.fill cancelServerI ()
-          do! IVar.fill cancelClientI ()
-          return testData
-        } |> Hopac.run
+      let actions = 
+        Alt.withNackJob <| fun nack -> 
+          Job.start( nack >>- (fun () -> (printfn "shutting down client" ))) >>-. actions
+      
+      Alt.choose [
+        gracefulShutdown.Alt
+        server
+        actions
+      ] |> Hopac.run
 
-      Expecto.Expect.equal testData res "The result should equal the test data"
+      let outRes = outRes |> IVar.read |> Hopac.run
+
+      Expecto.Expect.equal outRes testData  "The result should equal the test data"
     }
-    *)
+    
   ]

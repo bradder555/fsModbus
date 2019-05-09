@@ -671,8 +671,8 @@ type MbapRes =
   static member TryParse (frame : byte list) : Result<MbapRes, byte list * exn> =
     try
       // the smallest frame is 12 bytes long
-      if frame.Length < 12 then
-        FormatException("Frame length less than the minimum of 12") |> raise
+      //if frame.Length < 12 then
+      //  FormatException("Frame length less than the minimum of 12") |> raise
 
       let (
            tranIdHigh

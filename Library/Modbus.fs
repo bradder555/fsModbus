@@ -11,33 +11,35 @@ open System.Net
 open System.Net.Sockets
 open LoggingTypes 
 
+let disposeSocket (logger : Logger) (handle : Socket) =
+  job {
+    try 
+      let remote = handle.RemoteEndPoint :?> IPEndPoint
+      do! 
+        Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
+        >>- Message.AddField "remote-ip" remote.Address
+        >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+        >>- Message.AddField "action" "client-disconnect"
+        >>= logger.Log
+    with | _ -> ()
 
+    try
+      handle.Close(0)
+    with | _ -> ()
+
+    try
+      handle.Disconnect(true)
+    with | _ -> ()
+
+    try
+      handle.Dispose()
+    with | _ -> ()
+  }
 module Server =
 
   let build (logger : Logger ) (conf : ModbusServerConf) (actionFunc : MbapFunc) =
-    let disposeSocket (handle : Socket) =
-      job {
-        let remote = handle.RemoteEndPoint :?> IPEndPoint
-        let msg = 
-          Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
-          |> Message.AddField "remote-ip" remote.Address
-          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
-          |> Message.AddField "action" "client-disconnect"
-        do! logger.Log msg
 
-        try
-          handle.Close(0)
-        with | _ -> ()
-
-        try
-          handle.Disconnect(true)
-        with | _ -> ()
-
-        try
-          handle.Dispose()
-        with | _ -> ()
-      }
-
+    let disposeSocket = disposeSocket logger
     // handle receive is only ever called from the server function
     // should not be in the external API, instead of using private, better
     // to scope it to this function exclusively
@@ -51,30 +53,29 @@ module Server =
               let reqMbap = MbapReq.TryParse frame
               match reqMbap with
               | Ok r ->
-                let msg =
+                do!
                   Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
-                  |> Message.AddField "remote-ip" remote.Address
-                  |> Message.AddField "remote-port" remote.Port
-                  |> Message.AddFields (r.Request.ToFields ())
-                  |> Message.AddField "transaction" r.TransactionIdentifier
-                  |> Message.AddField "action" "request"
-                  |> Message.AddField "originator" "client"
+                  >>- Message.AddField "remote-ip" remote.Address
+                  >>- Message.AddField "remote-port" remote.Port
+                  >>- Message.AddFields (r.Request.ToFields ())
+                  >>- Message.AddField "transaction" r.TransactionIdentifier
+                  >>- Message.AddField "action" "request"
+                  >>- Message.AddField "originator" "client"
+                  >>= logger.Log
 
-                do! logger.Log msg
                 let res = actionFunc r
                 match res with
                 | Error _ -> exn "error responding to request" |> raise
                 | Ok res ->
-                  let msg =
+                  do!
                     Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
-                    |> Message.AddField "remote-ip" remote.Address
-                    |> Message.AddField "remote-port" remote.Port
-                    |> Message.AddFields (res.Response.ToFields ())
-                    |> Message.AddField "transaction" res.TransactionIdentifier
-                    |> Message.AddField "action" "response"
-                    |> Message.AddField "originator" "server"
-
-                  do! logger.Log msg                  
+                    >>- Message.AddField "remote-ip" remote.Address
+                    >>- Message.AddField "remote-port" remote.Port
+                    >>- Message.AddFields (res.Response.ToFields ())
+                    >>- Message.AddField "transaction" res.TransactionIdentifier
+                    >>- Message.AddField "action" "response"
+                    >>- Message.AddField "originator" "server"
+                    >>= logger.Log
 
                   let buff =
                     res.Serialize()
@@ -112,13 +113,13 @@ module Server =
       job {
         let! handler = listener.AcceptAsync()
         let remote = handler.RemoteEndPoint :?> IPEndPoint
-        let msg = 
+        do! 
           Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}" 
-          |> Message.AddField "action" "client-connect"
-          |> Message.AddField "remote-ip" remote.Address
-          |> Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          >>- Message.AddField "action" "client-connect"
+          >>- Message.AddField "remote-ip" remote.Address
+          >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
+          >>= logger.Log
 
-        do! logger.Log msg
         do! handleReceive handler |> Job.queue
       } |> Job.forever |> Promise.queue |> Alt.prepare
 
@@ -130,9 +131,10 @@ module Server =
       ) >>-. s
 
 
-(*
+
 module Client =
-  let build (shutdown : Alt<unit>) (conf : ModbusClientConf)  =
+  let build (logger : Logger) (conf : ModbusClientConf)  =
+    let disposeSocket = disposeSocket logger
     let clientChannels =
       {
         ReadDOs = Ch()
@@ -164,7 +166,6 @@ module Client =
 
         do!
           Alt.choose [
-            shutdown ^=> fun () -> disposeSocket client |> Job.result
 
             Ch.take clientChannels.ReadDIs
               ^=> fun (req, i) ->
@@ -332,6 +333,5 @@ module Client =
       }
 
     connect
-    >>= (fun c -> loop c 0us)
+    >>= (fun c -> loop c 0us |> Job.queue)
     >>-. clientChannels
-*)
