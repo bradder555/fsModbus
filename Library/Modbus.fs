@@ -317,7 +317,7 @@ module Client =
                               sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
                               |> exn |> Error
                             | ReadDORes x ->
-                              x.Status |> Ok
+                              x.Status |> List.take (initialReq.Quantity |> int) |> Ok
                             | _ -> exn "unexpected return function code" |> Error
                       }
                     )
