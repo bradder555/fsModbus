@@ -184,24 +184,22 @@ type WriteRegRequest =
 type WriteDosRequest =
   {
     Address : System.UInt16
-    Quantity: System.UInt16
-    // cannot be inferred, this information is needed
-    // by the response
-    // ByteCount: byte // useful for parsing validation, though
     Values: bool list
   }
   static member TryParse (pdu : byte list) : Result<WriteDosRequest, PDU * exn> =
     try
       let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: byteCount :: values) = pdu // throw exception if not an exact match
+      let quantity = [quantityLow; quantityHigh] |> tU16 |> int
+      let values = values |> Util.bytesToBool |> List.take quantity
       {
         Address = [addressLow; addressHigh] |> tU16
-        Quantity = [quantityLow; quantityHigh] |> tU16
-        Values = values |> Util.bytesToBool
+        Values = values
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
+
       let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
-      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Values |> List.length |> uint16 |> Util.U16ToBytes
       let data = x.Values |> Util.BoolsToBytes
       let byteCount = data |> List.length |> byte
       let functionCode = FunctionCode.WriteDOs.ToByte()
@@ -210,8 +208,6 @@ type WriteDosRequest =
 type WriteRegsRequest =
   {
     Address : System.UInt16
-    Quantity : System.UInt16
-    //ByteCount: byte
     Values : System.UInt16 list
   }
   static member TryParse (pdu : byte list) : Result<WriteRegsRequest,PDU * exn> =
@@ -219,16 +215,16 @@ type WriteRegsRequest =
       let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: count :: values) = pdu // throw exception if not an exact match
       if values.Length % 2 <> 0 then
         "Even number of data bytes expected" |> FormatException |> raise
-
+      let quantity = [quantityLow; quantityHigh] |> tU16 // should validate this
+      let values = values |> swapU16s |> Util.bytesToUint16
       {
         Address = [addressLow; addressHigh] |> tU16
-        Quantity = [quantityLow; quantityHigh] |> tU16
-        Values = values |> swapU16s |> Util.bytesToUint16
+        Values = values
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
       let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
-      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Values |> List.length |> uint16 |> Util.U16ToBytes
       let data = x.Values |> Util.U16sToBytes |> Util.swapU16s
       let byteCount = data |> List.length |> byte
       let functionCode = FunctionCode.WriteRegs.ToByte()
@@ -589,7 +585,6 @@ type MbapReq =
   {
     TransactionIdentifier : TransactionIdentifier
     ProtocolIdentifier : ProtocolIdentifier
-    Length : Length
     UnitIdentifier : UnitIdentifier
     Request: RtuRequest
   }
@@ -597,9 +592,9 @@ type MbapReq =
     // The transaction and protocol identifiers are reversed
     let ti = x.TransactionIdentifier |> U16ToBytes |> swapU16s
     let pi = x.ProtocolIdentifier |> U16ToBytes |> swapU16s
-    let len = x.Length |> U16ToBytes |> swapU16s
     let uid = x.UnitIdentifier
     let req = x.Request.Serialize ()
+    let len = req |> List.length |> (+) 1 |> uint16 |> U16ToBytes |> swapU16s
 
     ti @ pi @ len @ [uid] @ req
   static member TryParse (frame : byte list) : Result<MbapReq, byte list * exn> =
@@ -621,7 +616,6 @@ type MbapReq =
       let transactionIdentifier = [tranIdLow; tranIdHigh] |> tU16
       let protocol = [protocolLow; protocolHigh] |> tU16
       let length = [lengthLow; lengthHigh; 0uy; 0uy] |> tI32
-      let lengthU = [lengthLow; lengthHigh] |> tU16
 
       // verify the length
       if (frame.Length - 6) <> length then
@@ -638,7 +632,6 @@ type MbapReq =
           {
             TransactionIdentifier = transactionIdentifier
             ProtocolIdentifier = protocol
-            Length = lengthU
             UnitIdentifier = unitIdentifier
             Request = m
           } |> Ok
@@ -763,13 +756,13 @@ module ModFunc =
       let writeDOsFunc (req : WriteDosRequest) : RtuResponse =
         {
           Address = req.Address
-          Quantity = req.Quantity
+          Quantity = req.Values |> List.length |> uint16
         } |> WriteDOsRes
 
       let writeRegsFunc (req : WriteRegsRequest) : RtuResponse =
         {
           Address = req.Address
-          Quantity = req.Quantity
+          Quantity = req.Values |> List.length |> uint16
         } |> WriteRegsRes
 
   // the defaults do nothing, all they do is return is

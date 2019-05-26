@@ -184,7 +184,6 @@ module Client =
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
                           Request = req |> RtuRequest.ReadDIReq
-                          Length = length
                         }
                         let req = req.Serialize () |> List.toArray |> ArraySegment
                         let! reqCount = (fun () -> client.SendAsync(req, SocketFlags.None)) |> Job.fromTask
@@ -226,7 +225,6 @@ module Client =
                         let req : WriteDosRequest =
                           {
                             Address = offset
-                            Quantity = blist |> List.length |> Convert.ToUInt16
                             Values = blist
                           }
 
@@ -241,7 +239,6 @@ module Client =
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
                           Request = req |> RtuRequest.WriteDOsReq
-                          Length = length
                         }
 
                         let req = req.Serialize () |> List.toArray |> ArraySegment
@@ -278,13 +275,13 @@ module Client =
                 ] |> Job.seqIgnore
 
             Ch.take clientChannels.ReadDOs
-              ^=> fun (req, i) ->
+              ^=> fun (initialReq, i) ->
                 [
                   Job.tryIn
                     (
                       job{
                         let length =
-                          req.PartialSerialize()
+                          initialReq.PartialSerialize()
                           |> List.length
                           |> (+) 2
                           |> Convert.ToUInt16
@@ -293,8 +290,7 @@ module Client =
                           TransactionIdentifier = transactionCounter
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
-                          Request = req |> RtuRequest.ReadDOReq
-                          Length = length
+                          Request = initialReq |> RtuRequest.ReadDOReq
                         }
 
                         let req = req.Serialize () |> List.toArray |> ArraySegment
