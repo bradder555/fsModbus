@@ -17,11 +17,13 @@ let main argv =
     |> Option.defaultValue "tcp://127.0.0.1:5502"
     |> ModbusTypes.ModbusServerConf.TryParse
 
+  // create the datastore
   let mutable dis = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
   let mutable dos = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
   let mutable hReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
   let mutable iReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
 
+  // create the delegates that read and write to the datastore (or just pass-through)
   let readHRegFunc (x : ReqOffQuant) : ResRegs =
     let b = x.Address |> int
     let c = x.Quantity |> int
@@ -86,6 +88,7 @@ let main argv =
       Quantity = qty |> uint16
     }
 
+  // create the 'rtu action func' which takes the RtuRequest and returns the RtuResponse
   let actionFunc : ModFunc =
     let r (req : RtuRequest) : RtuResponse =
       match req with
@@ -99,6 +102,7 @@ let main argv =
       | WriteRegsReq x -> writeRegsFunc x |> WriteRegsRes
     r
 
+  // wrap up the action func in the MabpFunc, this takes the MBapRequest and returns the MBapResponse
   let actionFunc : MbapFunc =
     let r (req : MbapReq ) : Result<MbapRes, unit> =
       match req.UnitIdentifier with
@@ -118,15 +122,24 @@ let main argv =
       | _ -> () |> Error
     r
 
+  // build the graceful shutdown alternative
   let gracefulShutdown = GracefulShutdown.Build()
 
+  // pull out the conf
   let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
+
+  // build the console logger for the logger
   let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
+
+  // create a new logger and attach the console logger to it
   let logger =
     Logger.New()
     |> Logger.Add "verboseConsole" consoleLogger
 
+  // build the hopac server
   let server = Modbus.Server.build logger conf actionFunc
+
+  // run the server, it should block until one of the alts is committed to
   job {
     do! Alt.choose [
       gracefulShutdown.Alt
@@ -134,5 +147,6 @@ let main argv =
     ]
   } |> Hopac.run
 
+  // if the previously blocked job is over, make sure the gracefulShutdown is finished, so the application exits
   gracefulShutdown.Finished()
   0
