@@ -184,24 +184,22 @@ type WriteRegRequest =
 type WriteDosRequest =
   {
     Address : System.UInt16
-    Quantity: System.UInt16
-    // cannot be inferred, this information is needed
-    // by the response
-    // ByteCount: byte // useful for parsing validation, though
     Values: bool list
   }
   static member TryParse (pdu : byte list) : Result<WriteDosRequest, PDU * exn> =
     try
       let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: byteCount :: values) = pdu // throw exception if not an exact match
+      let quantity = [quantityLow; quantityHigh] |> tU16 |> int
+      let values = values |> Util.bytesToBool |> List.take quantity
       {
         Address = [addressLow; addressHigh] |> tU16
-        Quantity = [quantityLow; quantityHigh] |> tU16
-        Values = values |> Util.bytesToBool
+        Values = values
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
+
       let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
-      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Values |> List.length |> uint16 |> Util.U16ToBytes
       let data = x.Values |> Util.BoolsToBytes
       let byteCount = data |> List.length |> byte
       let functionCode = FunctionCode.WriteDOs.ToByte()
@@ -210,8 +208,6 @@ type WriteDosRequest =
 type WriteRegsRequest =
   {
     Address : System.UInt16
-    Quantity : System.UInt16
-    //ByteCount: byte
     Values : System.UInt16 list
   }
   static member TryParse (pdu : byte list) : Result<WriteRegsRequest,PDU * exn> =
@@ -219,16 +215,16 @@ type WriteRegsRequest =
       let (functionCode :: addressHigh :: addressLow :: quantityHigh :: quantityLow :: count :: values) = pdu // throw exception if not an exact match
       if values.Length % 2 <> 0 then
         "Even number of data bytes expected" |> FormatException |> raise
-
+      let quantity = [quantityLow; quantityHigh] |> tU16 // should validate this
+      let values = values |> swapU16s |> Util.bytesToUint16
       {
         Address = [addressLow; addressHigh] |> tU16
-        Quantity = [quantityLow; quantityHigh] |> tU16
-        Values = values |> swapU16s |> Util.bytesToUint16
+        Values = values
       } |> Ok
     with | e -> (pdu, e) |> Error
     member x.Serialize () =
       let [addressLow; addressHigh] = x.Address |> Util.U16ToBytes
-      let [quantityLow; quantityHigh] = x.Quantity |> Util.U16ToBytes
+      let [quantityLow; quantityHigh] = x.Values |> List.length |> uint16 |> Util.U16ToBytes
       let data = x.Values |> Util.U16sToBytes |> Util.swapU16s
       let byteCount = data |> List.length |> byte
       let functionCode = FunctionCode.WriteRegs.ToByte()
@@ -314,47 +310,47 @@ type RtuRequest =
   // will probably be scoped to a separate logging file one day
   member x.ToFields () : Map<string, obj> =
     match x with
-      | ReadDOReq x -> 
-        Map.empty 
+      | ReadDOReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read DO" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadDIReq x -> 
-        Map.empty 
+      | ReadDIReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read DI" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadHRegReq x -> 
-        Map.empty 
+      | ReadHRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read HReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadIRegReq x -> 
-        Map.empty 
+      | ReadIRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read IReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | WriteDOReq x -> 
-        Map.empty 
+      | WriteDOReq x ->
+        Map.empty
         |> Map.add "function-code" ("Write DO" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "values" (x.Value :> obj)
-      | WriteRegReq x -> 
-        Map.empty 
+      | WriteRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Write HReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Value :> obj)      
+        |> Map.add "values" (x.Value :> obj)
       | WriteDOsReq x ->
         Map.empty
         |> Map.add "function-code" ("Write DOs" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Values :> obj)         
-      | WriteRegsReq x -> 
+        |> Map.add "values" (x.Values :> obj)
+      | WriteRegsReq x ->
         Map.empty
         |> Map.add "function-code" ("Write HRegs" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Values :> obj)       
-    
+        |> Map.add "values" (x.Values :> obj)
+
 
 type ResBools =
   {
@@ -477,47 +473,47 @@ type RtuResponse =
 
   member x.ToFields () : Map<string, obj> =
     match x with
-    | ReadDORes x -> 
-      Map.empty 
+    | ReadDORes x ->
+      Map.empty
       |> Map.add "function-code" ("Read DO" :> obj)
       |> Map.add "values" (x.Status :> obj)
-    | ReadDIRes x -> 
-      Map.empty 
+    | ReadDIRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read DI" :> obj)
       |> Map.add "values" (x.Status :> obj)
-    | ReadHRegRes x -> 
-      Map.empty 
+    | ReadHRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read HReg" :> obj)
       |> Map.add "values" (x.Values :> obj)
-    | ReadIRegRes x -> 
-      Map.empty 
+    | ReadIRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read IReg" :> obj)
       |> Map.add "values" (x.Values :> obj)
-    | WriteDORes x -> 
-      Map.empty 
+    | WriteDORes x ->
+      Map.empty
       |> Map.add "function-code" ("Write DO" :> obj)
       |> Map.add "values" (x.Value :> obj)
       |> Map.add "address" (x.Address :> obj)
-    | WriteRegRes x -> 
-      Map.empty 
+    | WriteRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write HReg" :> obj)
       |> Map.add "values" (x.Value :> obj)
-      |> Map.add "address" (x.Address :> obj)    
-    | WriteDOsRes x -> 
-      Map.empty 
+      |> Map.add "address" (x.Address :> obj)
+    | WriteDOsRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write DOs" :> obj)
       |> Map.add "quantity" (x.Quantity :> obj)
-      |> Map.add "address" (x.Address :> obj)    
-    | WriteRegsRes x -> 
-      Map.empty 
+      |> Map.add "address" (x.Address :> obj)
+    | WriteRegsRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write HRegs" :> obj)
       |> Map.add "address" (x.Address :> obj)
-      |> Map.add "quantity" (x.Quantity :> obj)    
-    | ModErrorRes x -> 
-      Map.empty 
+      |> Map.add "quantity" (x.Quantity :> obj)
+    | ModErrorRes x ->
+      Map.empty
       |> Map.add "function-code" ("Modbus Error" :> obj)
       |> Map.add "error-code" (x.FunctionCode :> obj)
-      |> Map.add "exception-code" (x.ExceptionCode :> obj)    
+      |> Map.add "exception-code" (x.ExceptionCode :> obj)
 
   static member TryParse (pdu : byte list) : Result<RtuResponse, PDU > =
     let (functionCode :: remainder) = pdu
@@ -589,7 +585,6 @@ type MbapReq =
   {
     TransactionIdentifier : TransactionIdentifier
     ProtocolIdentifier : ProtocolIdentifier
-    Length : Length
     UnitIdentifier : UnitIdentifier
     Request: RtuRequest
   }
@@ -597,9 +592,9 @@ type MbapReq =
     // The transaction and protocol identifiers are reversed
     let ti = x.TransactionIdentifier |> U16ToBytes |> swapU16s
     let pi = x.ProtocolIdentifier |> U16ToBytes |> swapU16s
-    let len = x.Length |> U16ToBytes |> swapU16s
     let uid = x.UnitIdentifier
     let req = x.Request.Serialize ()
+    let len = req |> List.length |> (+) 1 |> uint16 |> U16ToBytes |> swapU16s
 
     ti @ pi @ len @ [uid] @ req
   static member TryParse (frame : byte list) : Result<MbapReq, byte list * exn> =
@@ -621,7 +616,6 @@ type MbapReq =
       let transactionIdentifier = [tranIdLow; tranIdHigh] |> tU16
       let protocol = [protocolLow; protocolHigh] |> tU16
       let length = [lengthLow; lengthHigh; 0uy; 0uy] |> tI32
-      let lengthU = [lengthLow; lengthHigh] |> tU16
 
       // verify the length
       if (frame.Length - 6) <> length then
@@ -638,7 +632,6 @@ type MbapReq =
           {
             TransactionIdentifier = transactionIdentifier
             ProtocolIdentifier = protocol
-            Length = lengthU
             UnitIdentifier = unitIdentifier
             Request = m
           } |> Ok
@@ -671,7 +664,7 @@ type MbapRes =
   static member TryParse (frame : byte list) : Result<MbapRes, byte list * exn> =
     try
       // the smallest frame is 12 bytes long
-      //if frame.Length < 12 then
+      // if frame.Length < 12 then
       //  FormatException("Frame length less than the minimum of 12") |> raise
 
       let (
@@ -763,13 +756,13 @@ module ModFunc =
       let writeDOsFunc (req : WriteDosRequest) : RtuResponse =
         {
           Address = req.Address
-          Quantity = req.Quantity
+          Quantity = req.Values |> List.length |> uint16
         } |> WriteDOsRes
 
       let writeRegsFunc (req : WriteRegsRequest) : RtuResponse =
         {
           Address = req.Address
-          Quantity = req.Quantity
+          Quantity = req.Values |> List.length |> uint16
         } |> WriteRegsRes
 
   // the defaults do nothing, all they do is return is

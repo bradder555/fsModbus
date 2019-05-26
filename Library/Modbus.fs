@@ -9,14 +9,14 @@ open Hopac.Infixes
 open System
 open System.Net
 open System.Net.Sockets
-open FsLoggingTypes 
+open FsLoggingTypes
 
 let disposeSocket (logger : Logger) (handle : Socket) =
   job {
-    try 
+    try
       let remote = handle.RemoteEndPoint :?> IPEndPoint
-      do! 
-        Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
+      do!
+        Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}"
         >>- Message.AddField "remote-ip" remote.Address
         >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
         >>- Message.AddField "action" "client-disconnect"
@@ -54,7 +54,7 @@ module Server =
               match reqMbap with
               | Ok r ->
                 do!
-                  Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                  Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}"
                   >>- Message.AddField "remote-ip" remote.Address
                   >>- Message.AddField "remote-port" remote.Port
                   >>- Message.AddFields (r.Request.ToFields ())
@@ -68,7 +68,7 @@ module Server =
                 | Error _ -> exn "error responding to request" |> raise
                 | Ok res ->
                   do!
-                    Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                    Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}"
                     >>- Message.AddField "remote-ip" remote.Address
                     >>- Message.AddField "remote-port" remote.Port
                     >>- Message.AddFields (res.Response.ToFields ())
@@ -113,8 +113,8 @@ module Server =
       job {
         let! handler = listener.AcceptAsync()
         let remote = handler.RemoteEndPoint :?> IPEndPoint
-        do! 
-          Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}" 
+        do!
+          Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}"
           >>- Message.AddField "action" "client-connect"
           >>- Message.AddField "remote-ip" remote.Address
           >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
@@ -168,23 +168,23 @@ module Client =
           Alt.choose [
 
             Ch.take clientChannels.ReadDIs
-              ^=> fun (req, i) ->
+              ^=> fun (initialReq, i) ->
                 [
                   Job.tryIn
                     (
                       job{
                         let length =
-                          req.PartialSerialize()
+                          initialReq.PartialSerialize()
                           |> List.length
                           |> (+) 2
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
-                          Request = req |> RtuRequest.ReadDIReq
-                          Length = length
+                          Request = initialReq |> RtuRequest.ReadDIReq
                         }
                         let req = req.Serialize () |> List.toArray |> ArraySegment
                         let! reqCount = (fun () -> client.SendAsync(req, SocketFlags.None)) |> Job.fromTask
@@ -203,13 +203,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | ReadDIRes x ->
-                              x.Status |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | ReadDIRes x ->
+                                x.Status |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)
@@ -226,7 +229,6 @@ module Client =
                         let req : WriteDosRequest =
                           {
                             Address = offset
-                            Quantity = blist |> List.length |> Convert.ToUInt16
                             Values = blist
                           }
 
@@ -236,12 +238,12 @@ module Client =
                           |> (+) 1
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
                           Request = req |> RtuRequest.WriteDOsReq
-                          Length = length
                         }
 
                         let req = req.Serialize () |> List.toArray |> ArraySegment
@@ -263,13 +265,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | WriteDOsRes _ ->
-                              () |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | WriteDOsRes _ ->
+                                () |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)
@@ -278,23 +283,23 @@ module Client =
                 ] |> Job.seqIgnore
 
             Ch.take clientChannels.ReadDOs
-              ^=> fun (req, i) ->
+              ^=> fun (initialReq, i) ->
                 [
                   Job.tryIn
                     (
                       job{
                         let length =
-                          req.PartialSerialize()
+                          initialReq.PartialSerialize()
                           |> List.length
                           |> (+) 2
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
-                          Request = req |> RtuRequest.ReadDOReq
-                          Length = length
+                          Request = initialReq |> RtuRequest.ReadDOReq
                         }
 
                         let req = req.Serialize () |> List.toArray |> ArraySegment
@@ -316,13 +321,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | ReadDORes x ->
-                              x.Status |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | ReadDORes x ->
+                                x.Status |> List.take (initialReq.Quantity |> int) |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)

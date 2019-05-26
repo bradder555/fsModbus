@@ -4,7 +4,7 @@ open Hopac
 open Hopac.Infixes
 open ModbusTypes
 open System
-open GracefulShutdown 
+open GracefulShutdown
 open FsLoggingTypes
 
 [<EntryPoint>]
@@ -45,13 +45,13 @@ let main argv =
 
   let writeRegsFunc (x : WriteRegsRequest) : ResOffQuant =
      let o = x.Address |> int
-     let c = x.Quantity |> int
+     let c = x.Values |> List.length
      let vals = x.Values
      [0..(c-1)]
      |> List.map(fun x -> hReg |> Map.add (o + x) (vals |> List.item x) |> fun x -> hReg <- x)
      |> ignore
      {
-       Quantity = x.Quantity
+       Quantity = c |> uint16
        Address = x.Address
      }
 
@@ -76,14 +76,14 @@ let main argv =
 
   let writeDOsFunc (x : WriteDosRequest) : ResOffQuant =
     let offset = x.Address |> int
-    let qty = x.Quantity |> int
+    let qty = x.Values |> List.length
     let vals = x.Values
     [0..(qty-1)]
     |> List.map(fun x -> dos |> Map.add (offset + x) (vals |> List.item x) |> fun x -> dos <- x) // hacky!
     |> ignore
     {
       Address = x.Address
-      Quantity = x.Quantity
+      Quantity = qty |> uint16
     }
 
   let actionFunc : ModFunc =
@@ -122,7 +122,7 @@ let main argv =
 
   let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
   let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
-  let logger = 
+  let logger =
     Logger.New()
     |> Logger.Add "verboseConsole" consoleLogger
 

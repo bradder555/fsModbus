@@ -135,8 +135,7 @@ let tests =
             test "6 values" {
                 let t : WriteDosRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 06us
-                    Values = [true; true; true; true; false; false; false; false;]
+                    Values = [true; true; true; true; false; false; ]
                 }
                 Expect.equal
                   (t.Serialize ())
@@ -146,7 +145,6 @@ let tests =
             test "8 values" {
                 let t : WriteDosRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 08us
                     Values = [true; true; true; true; false; false; false; true;]
                 }
                 Expect.equal
@@ -157,7 +155,6 @@ let tests =
             test "12 values" {
                 let t : WriteDosRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 12us
                     Values =
                       [
                         true;
@@ -171,10 +168,6 @@ let tests =
                         // ---
                         true;
                         true;
-                        false;
-                        false;
-                        false;
-                        false;
                         false;
                         false;
                         ]
@@ -187,7 +180,6 @@ let tests =
             test "20 values" {
                 let t : WriteDosRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 20us
                     Values =
                       [
                         true;
@@ -212,10 +204,6 @@ let tests =
                         true;
                         true;
                         true;
-                        false;
-                        false;
-                        false;
-                        false;
                         ]
                 }
                 Expect.equal
@@ -226,11 +214,9 @@ let tests =
             test "240 values" {
                 let t : WriteDosRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = 1920us
                     Values = [0..1919] |> List.map (fun x -> x % 2 = 0)
                 }
                 let expectedData = [1..(240)] |> List.map (fun _ -> 85uy)
-                // 1920 = 07 80
 
                 Expect.equal
                   (t.Serialize ())
@@ -243,7 +229,6 @@ let tests =
             test "1 value" {
                 let t : WriteRegsRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 01us
                     Values = [1us]
                 }
                 Expect.equal
@@ -254,7 +239,6 @@ let tests =
             test "2 large values" {
                 let t : WriteRegsRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 02us
                     Values = [33003us; 18711us] // head = least sig
                     // 80 EB 49 17
                 }
@@ -267,7 +251,6 @@ let tests =
                 let v = [1us..120us] |> List.map ((*) 200us) // head = least sig
                 let t : WriteRegsRequest = {
                     Address = (0x66us <<< 8) + 0x32us
-                    Quantity = (0x00us <<< 8) + 120us
                     Values = v
                 }
                 let expectedData = v |> U16sToBytes |> swapU16s
