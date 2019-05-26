@@ -4,7 +4,7 @@ open Hopac
 open Hopac.Infixes
 open ModbusTypes
 open System
-open GracefulShutdown 
+open GracefulShutdown
 open FsLoggingTypes
 
 [<EntryPoint>]
@@ -122,7 +122,7 @@ let main argv =
 
   let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
   let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
-  let logger = 
+  let logger =
     Logger.New()
     |> Logger.Add "verboseConsole" consoleLogger
 

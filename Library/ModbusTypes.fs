@@ -310,47 +310,47 @@ type RtuRequest =
   // will probably be scoped to a separate logging file one day
   member x.ToFields () : Map<string, obj> =
     match x with
-      | ReadDOReq x -> 
-        Map.empty 
+      | ReadDOReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read DO" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadDIReq x -> 
-        Map.empty 
+      | ReadDIReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read DI" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadHRegReq x -> 
-        Map.empty 
+      | ReadHRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read HReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | ReadIRegReq x -> 
-        Map.empty 
+      | ReadIRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Read IReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "quantity" (x.Quantity :> obj)
-      | WriteDOReq x -> 
-        Map.empty 
+      | WriteDOReq x ->
+        Map.empty
         |> Map.add "function-code" ("Write DO" :> obj)
         |> Map.add "address" (x.Address :> obj)
         |> Map.add "values" (x.Value :> obj)
-      | WriteRegReq x -> 
-        Map.empty 
+      | WriteRegReq x ->
+        Map.empty
         |> Map.add "function-code" ("Write HReg" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Value :> obj)      
+        |> Map.add "values" (x.Value :> obj)
       | WriteDOsReq x ->
         Map.empty
         |> Map.add "function-code" ("Write DOs" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Values :> obj)         
-      | WriteRegsReq x -> 
+        |> Map.add "values" (x.Values :> obj)
+      | WriteRegsReq x ->
         Map.empty
         |> Map.add "function-code" ("Write HRegs" :> obj)
         |> Map.add "address" (x.Address :> obj)
-        |> Map.add "values" (x.Values :> obj)       
-    
+        |> Map.add "values" (x.Values :> obj)
+
 
 type ResBools =
   {
@@ -473,47 +473,47 @@ type RtuResponse =
 
   member x.ToFields () : Map<string, obj> =
     match x with
-    | ReadDORes x -> 
-      Map.empty 
+    | ReadDORes x ->
+      Map.empty
       |> Map.add "function-code" ("Read DO" :> obj)
       |> Map.add "values" (x.Status :> obj)
-    | ReadDIRes x -> 
-      Map.empty 
+    | ReadDIRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read DI" :> obj)
       |> Map.add "values" (x.Status :> obj)
-    | ReadHRegRes x -> 
-      Map.empty 
+    | ReadHRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read HReg" :> obj)
       |> Map.add "values" (x.Values :> obj)
-    | ReadIRegRes x -> 
-      Map.empty 
+    | ReadIRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Read IReg" :> obj)
       |> Map.add "values" (x.Values :> obj)
-    | WriteDORes x -> 
-      Map.empty 
+    | WriteDORes x ->
+      Map.empty
       |> Map.add "function-code" ("Write DO" :> obj)
       |> Map.add "values" (x.Value :> obj)
       |> Map.add "address" (x.Address :> obj)
-    | WriteRegRes x -> 
-      Map.empty 
+    | WriteRegRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write HReg" :> obj)
       |> Map.add "values" (x.Value :> obj)
-      |> Map.add "address" (x.Address :> obj)    
-    | WriteDOsRes x -> 
-      Map.empty 
+      |> Map.add "address" (x.Address :> obj)
+    | WriteDOsRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write DOs" :> obj)
       |> Map.add "quantity" (x.Quantity :> obj)
-      |> Map.add "address" (x.Address :> obj)    
-    | WriteRegsRes x -> 
-      Map.empty 
+      |> Map.add "address" (x.Address :> obj)
+    | WriteRegsRes x ->
+      Map.empty
       |> Map.add "function-code" ("Write HRegs" :> obj)
       |> Map.add "address" (x.Address :> obj)
-      |> Map.add "quantity" (x.Quantity :> obj)    
-    | ModErrorRes x -> 
-      Map.empty 
+      |> Map.add "quantity" (x.Quantity :> obj)
+    | ModErrorRes x ->
+      Map.empty
       |> Map.add "function-code" ("Modbus Error" :> obj)
       |> Map.add "error-code" (x.FunctionCode :> obj)
-      |> Map.add "exception-code" (x.ExceptionCode :> obj)    
+      |> Map.add "exception-code" (x.ExceptionCode :> obj)
 
   static member TryParse (pdu : byte list) : Result<RtuResponse, PDU > =
     let (functionCode :: remainder) = pdu
@@ -664,7 +664,7 @@ type MbapRes =
   static member TryParse (frame : byte list) : Result<MbapRes, byte list * exn> =
     try
       // the smallest frame is 12 bytes long
-      //if frame.Length < 12 then
+      // if frame.Length < 12 then
       //  FormatException("Frame length less than the minimum of 12") |> raise
 
       let (

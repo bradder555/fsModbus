@@ -9,14 +9,14 @@ open Hopac.Infixes
 open System
 open System.Net
 open System.Net.Sockets
-open FsLoggingTypes 
+open FsLoggingTypes
 
 let disposeSocket (logger : Logger) (handle : Socket) =
   job {
-    try 
+    try
       let remote = handle.RemoteEndPoint :?> IPEndPoint
-      do! 
-        Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}" 
+      do!
+        Message.Simple Information "{action} remote ip: {remote-ip} and port: {remote-port}"
         >>- Message.AddField "remote-ip" remote.Address
         >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections
         >>- Message.AddField "action" "client-disconnect"
@@ -54,7 +54,7 @@ module Server =
               match reqMbap with
               | Ok r ->
                 do!
-                  Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                  Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}"
                   >>- Message.AddField "remote-ip" remote.Address
                   >>- Message.AddField "remote-port" remote.Port
                   >>- Message.AddFields (r.Request.ToFields ())
@@ -68,7 +68,7 @@ module Server =
                 | Error _ -> exn "error responding to request" |> raise
                 | Ok res ->
                   do!
-                    Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}" 
+                    Message.Simple Debug "{originator}-{action}: {transaction}, {function-code}, {address}, {quantity}, {values} from remote ip: {remote-ip}, port: {remote-port}"
                     >>- Message.AddField "remote-ip" remote.Address
                     >>- Message.AddField "remote-port" remote.Port
                     >>- Message.AddFields (res.Response.ToFields ())
@@ -113,8 +113,8 @@ module Server =
       job {
         let! handler = listener.AcceptAsync()
         let remote = handler.RemoteEndPoint :?> IPEndPoint
-        do! 
-          Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}" 
+        do!
+          Message.Simple Information "{action}: remote ip: {remote-ip} and port: {remote-port}"
           >>- Message.AddField "action" "client-connect"
           >>- Message.AddField "remote-ip" remote.Address
           >>- Message.AddField "remote-port" remote.Port // useful, since a client can have multiple connections

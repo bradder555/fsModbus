@@ -14,32 +14,33 @@ open GracefulShutdown
 
 open FsLoggingTypes
 open System.Net.NetworkInformation
+open System.Collections.Generic
 
 
 // get a free port for testing purposes
-let getFreePort () = 
+let getFreePort () =
   job {
-    let mapIps (x : IPEndPoint seq )= 
-      x 
+    let mapIps (x : IPEndPoint seq )=
+      x
       |> Seq.toList
       |> List.map (fun x -> x.Port)
 
-    let ipProps = 
+    let ipProps =
       IPGlobalProperties
         .GetIPGlobalProperties()
 
-    let tcpConnections = 
+    let tcpConnections =
       ipProps
         .GetActiveTcpConnections()
       |> Seq.map (fun x -> x.LocalEndPoint)
       |> mapIps
 
-    let tcpListeners = 
+    let tcpListeners =
       ipProps
         .GetActiveTcpListeners()
       |> mapIps
 
-    let udpListeners = 
+    let udpListeners =
       ipProps
         .GetActiveUdpListeners()
       |> mapIps
@@ -52,8 +53,8 @@ let getFreePort () =
 
     let ourPortRange = [1025 .. 30000]
 
-    return 
-      ourPortRange 
+    return
+      ourPortRange
       |> List.except usedPorts
       |> List.head
   }
@@ -177,13 +178,13 @@ let clientConf : ModbusTypes.ModbusClientConf =
 
 
 let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
-let logger = 
+let logger =
   Logger.New()
   |> Logger.Add "verboseConsole" consoleLogger
 
 let tests =
   testList "client" [
-    
+
     test "DOs roundtrip" {
       let testData = [true; true; true; false; false; true]
       let address = 2 |> Convert.ToUInt16
@@ -196,11 +197,11 @@ let tests =
         job {
           let! modClient = Modbus.Client.build logger clientConf
           // write values to DOs
-          
+
           let ivar = IVar()
           do! Ch.give modClient.WriteDOs ((address, testData), ivar)
           let! res1 = ivar |> IVar.read
-          let res1 = 
+          let res1 =
             match res1 with
             | Error e -> raise e
             | Ok r -> r
@@ -213,18 +214,18 @@ let tests =
           }
           do! Ch.give modClient.ReadDOs (rdo, ivar)
           let! res2 = ivar |> IVar.read
-          let res2 = 
+          let res2 =
             match res2 with
             | Error e -> raise e
-            | Ok r -> r 
+            | Ok r -> r
 
           do! res2 |> IVar.fill outRes
         } |> Promise.queue |> Alt.prepare
 
-      let actions = 
-        Alt.withNackJob <| fun nack -> 
+      let actions =
+        Alt.withNackJob <| fun nack ->
           Job.start( nack >>- (fun () -> (printfn "shutting down client" ))) >>-. actions
-      
+
       Alt.choose [
         gracefulShutdown.Alt
         server
@@ -235,5 +236,5 @@ let tests =
 
       Expecto.Expect.equal outRes testData  "The result should equal the test data"
     }
-    
+
   ]
