@@ -168,22 +168,23 @@ module Client =
           Alt.choose [
 
             Ch.take clientChannels.ReadDIs
-              ^=> fun (req, i) ->
+              ^=> fun (initialReq, i) ->
                 [
                   Job.tryIn
                     (
                       job{
                         let length =
-                          req.PartialSerialize()
+                          initialReq.PartialSerialize()
                           |> List.length
                           |> (+) 2
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
-                          Request = req |> RtuRequest.ReadDIReq
+                          Request = initialReq |> RtuRequest.ReadDIReq
                         }
                         let req = req.Serialize () |> List.toArray |> ArraySegment
                         let! reqCount = (fun () -> client.SendAsync(req, SocketFlags.None)) |> Job.fromTask
@@ -202,13 +203,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | ReadDIRes x ->
-                              x.Status |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | ReadDIRes x ->
+                                x.Status |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)
@@ -234,8 +238,9 @@ module Client =
                           |> (+) 1
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
                           Request = req |> RtuRequest.WriteDOsReq
@@ -260,13 +265,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | WriteDOsRes _ ->
-                              () |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | WriteDOsRes _ ->
+                                () |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)
@@ -286,8 +294,9 @@ module Client =
                           |> (+) 2
                           |> Convert.ToUInt16
 
+                        let transactionIdentifier = transactionCounter
                         let req = {
-                          TransactionIdentifier = transactionCounter
+                          TransactionIdentifier = transactionIdentifier
                           ProtocolIdentifier = 0us
                           UnitIdentifier = conf.SlaveId |> byte
                           Request = initialReq |> RtuRequest.ReadDOReq
@@ -312,13 +321,16 @@ module Client =
                           | _, _, Error (_, e) -> e |> Error
                           | _, _, Ok x ->
                             // do a heap of validation, i.e. TransactionIdentifier should equal the req TI
-                            match x.Response with
-                            | ModErrorRes e ->
-                              sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
-                              |> exn |> Error
-                            | ReadDORes x ->
-                              x.Status |> List.take (initialReq.Quantity |> int) |> Ok
-                            | _ -> exn "unexpected return function code" |> Error
+                            if x.TransactionIdentifier <> transactionIdentifier then
+                              "sprintf response is not to this request" |> exn |> Error
+                            else
+                              match x.Response with
+                              | ModErrorRes e ->
+                                sprintf "ModError with FC = %A and EC = %A" e.ExceptionCode e.FunctionCode
+                                |> exn |> Error
+                              | ReadDORes x ->
+                                x.Status |> List.take (initialReq.Quantity |> int) |> Ok
+                              | _ -> exn "unexpected return function code" |> Error
                       }
                     )
                     (IVar.fill i)
