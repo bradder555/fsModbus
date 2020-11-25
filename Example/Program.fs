@@ -1,11 +1,8 @@
 ﻿// Learn more about F# at http://fsharp.org
-
-open Hopac
-open Hopac.Infixes
 open ModbusTypes
 open System
-open GracefulShutdown
-open FsLoggingTypes
+open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Logging.Console
 
 [<EntryPoint>]
 let main argv =
@@ -122,31 +119,12 @@ let main argv =
       | _ -> () |> Error
     r
 
-  // build the graceful shutdown alternative
-  let gracefulShutdown = GracefulShutdown.Build()
-
   // pull out the conf
   let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
-
-  // build the console logger for the logger
-  let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
-
-  // create a new logger and attach the console logger to it
-  let logger =
-    Logger.New()
-    |> Logger.Add "verboseConsole" consoleLogger
-
+  let logger = 
+    LoggerFactory.Create(fun o -> 
+      o.AddConsole() |> ignore
+    ).CreateLogger()
   // build the hopac server
-  let server = Modbus.Server.build logger conf actionFunc
-
-  // run the server, it should block until one of the alts is committed to
-  job {
-    do! Alt.choose [
-      gracefulShutdown.Alt
-      server
-    ]
-  } |> Hopac.run
-
-  // if the previously blocked job is over, make sure the gracefulShutdown is finished, so the application exits
-  gracefulShutdown.Finished()
+  Modbus.Server.build logger conf actionFunc |> Async.RunSynchronously
   0

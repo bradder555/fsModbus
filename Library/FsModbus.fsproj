@@ -1,10 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <VersionPrefix>"$(version)"</VersionPrefix>
     <authors>Brad</authors>
     <owners>Brad</owners>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
@@ -16,12 +15,11 @@
     <Compile Include="Util.fs" />
     <Compile Include="ModbusTypes.fs" />
     <Compile Include="Modbus.fs" />
-    <Compile Include="GracefulShutdown.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="FsLogging" Version="1.0.2" />
-    <PackageReference Include="hopac" Version="0.4.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
     <PackageReference Include="system.io" Version="4.3.0" />
     <PackageReference Include="system.io.ports" Version="4.5.0" />
     <PackageReference Include="system.net.sockets" Version="4.3.0" />

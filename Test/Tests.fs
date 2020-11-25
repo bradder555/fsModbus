@@ -1,8 +1,5 @@
 module Tests
 
-open Hopac
-open Expecto
-
 let tests =
   testList "." ([ // List is alphabetical order
     Test.Deserialization.tests
