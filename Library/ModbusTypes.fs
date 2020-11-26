@@ -1,6 +1,5 @@
 module ModbusTypes
 open System.Transactions
-open Hopac
 #nowarn "25"
 
 // for my code, the head should always be the least significant
@@ -859,12 +858,13 @@ type Offset = UInt16
 // reading of individual addresses should be discouraged
 // ideally block-reading of addresses will be followed
 // thus i've skipped the single function codes for now
+
 type ModbusClient =
   {
-    ReadDOs : Ch<ReqOffQuant * IVar<Result<bool list, exn>>>
-    ReadDIs : Ch<ReqOffQuant * IVar<Result<bool list, exn>>>
-    ReadHRegs: Ch<ReqOffQuant * IVar<Result<UInt16 list, exn>>>
-    ReadIRegs: Ch<ReqOffQuant * IVar<Result<UInt16 list, exn>>>
-    WriteDOs: Ch<(Offset * bool list) * IVar<Result<unit, exn>>>
-    WriteRegs: Ch<(Offset * UInt16 list) * IVar<Result<unit, exn>>>
+    ReadDOs : ReqOffQuant -> Async<Result<bool list, exn>>
+    ReadDIs : ReqOffQuant -> Async<Result<bool list, exn>>
+    ReadHRegs: ReqOffQuant -> Async<Result<UInt16 list, exn>>
+    ReadIRegs: ReqOffQuant -> Async<Result<UInt16 list, exn>>
+    WriteDOs: (Offset * bool list) -> Async<Result<unit, exn>>
+    WriteRegs: (Offset * UInt16 list) -> Async<Result<unit, exn>>
   }

@@ -2,10 +2,9 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-    <VersionPrefix>"$(version)"</VersionPrefix>
     <authors>Brad</authors>
     <owners>Brad</owners>
     <PackageLicenseExpression>GPL-3.0-or-later</PackageLicenseExpression>
@@ -14,12 +13,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Library/FsModbus.fsproj"/>
+    <ProjectReference Include="../Library/FsModbus.fsproj" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="hopac" Version="0.4.1" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="5.0.0" />
   </ItemGroup>
 
 </Project>

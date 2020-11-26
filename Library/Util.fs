@@ -2,6 +2,7 @@ module Util
 // for my code, the head should always be the least significant
 
 open System
+open System.Threading
 #nowarn "25"
 // okay to crash if the pattern doesn't match,
 // may be better to take a byte list and attempt the pattern matching inside a try-with?
@@ -76,3 +77,33 @@ let swapU16s (x : byte list) : byte list =
           a,b
        )
   |> List.fold (fun a (b,c) -> a @ [c] @ [b]  ) []
+
+module Async = 
+  let CancelServer (job : Async<_>) (ctoken : CancellationToken ) = 
+    let rec t () = 
+      async {
+        match ctoken.IsCancellationRequested with 
+        | true -> return ()
+        | _ -> 
+          do! job
+          return! t ()
+      }
+    t ()
+
+  let ForeverServer job = 
+    let ctoken = CancellationToken()
+    CancelServer job ctoken
+
+  let result x = async { return x }
+
+  let map f M =
+    async {
+      let! m = M
+      return f m
+    }
+
+  let bind f M= 
+    async {
+      let! m = M
+      return! f m
+    }

@@ -6,13 +6,8 @@ open System
 open System.Net
 open System.Net.Sockets
 
-open Hopac
-open Hopac.Infixes
-
 open ModbusTypes
-open GracefulShutdown
 
-open FsLoggingTypes
 open System.Net.NetworkInformation
 open System.Collections.Generic
 

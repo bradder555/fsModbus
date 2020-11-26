@@ -1,6 +1,5 @@
 module Test.Serialization
 
-open Expecto
 open ModbusTypes
 open Util
 
