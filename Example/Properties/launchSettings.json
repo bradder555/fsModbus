@@ -1,0 +1,31 @@
+{
+  "profiles": {
+    "FsModbus.Example": {
+      "commandName": "Project"
+    },
+    "test help": {
+      "commandName": "Project",
+      "commandLineArgs": "--help"
+    },
+    "test server": {
+      "commandName": "Project",
+      "commandLineArgs": "--run-server"
+    },
+    "test client": {
+      "commandName": "Project",
+      "commandLineArgs": "--run-client"
+    },
+    "test server and client": {
+      "commandName": "Project",
+      "commandLineArgs": "--run-server --run-client"
+    },
+    "test server and randomizer": {
+      "commandName": "Project",
+      "commandLineArgs": "--run-server --run-randomizer"
+    },
+    "test all": {
+      "commandName": "Project",
+      "commandLineArgs": "--run-server --run-client --run-randomizer"
+    }
+  }
+}

@@ -32,7 +32,7 @@ let disposeSocket (logger : ILogger) (handle : Socket) =
   }
 module Server =
 
-  let build (logger : ILogger ) (conf : ModbusServerConf) (actionFunc : MbapFunc) =
+  let build (logger : ILogger ) (conf : ModbusServerConf) (actionFunc : MbapFunc) : Async<unit> =
     logger.LogInformation(
       "Building the Modbus Server")
 

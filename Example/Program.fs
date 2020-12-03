@@ -77,16 +77,67 @@ let randomI (reg : byref<Map<int, bool>>) : unit =
   let newv = reg |> Map.find i |> not
   reg <- reg |> Map.add i newv
 
+type ParsedArg = 
+  | Missing 
+  | Present
+  | Value of string
+
+module ParsedArg = 
+  let flagOnly =
+    function 
+      | Present -> true
+      | Value "true" -> true
+      | _ -> false
+
+let parseArgs (argv : seq<string>) key = 
+  argv 
+  |> Seq.tryFind (fun x -> x.ToLower().Contains(sprintf "--%s" key))
+  |> function 
+     | None -> Missing
+     | Some x -> 
+       match x.Contains('=') with 
+       | true -> x.Split('=') |> Seq.tail |> Seq.reduce (fun a n -> sprintf "%s=%s" a n) |> ParsedArg.Value 
+       | _ -> Present
+
+module Result = 
+  let ToOption = function | Ok x -> Some x | _ -> None
 
 [<EntryPoint>]
 let main argv =
 
-  let conf =
-    argv
-    |> Seq.tryFind (fun x -> x.ToLower().Contains("binding"))
-    |> Option.map (fun x -> x.Split('=') |> Seq.last)
-    |> Option.defaultValue "tcp://127.0.0.1:5502"
-    |> ModbusTypes.ModbusServerConf.TryParse
+  let argParser = parseArgs argv
+
+  match argParser "help" with 
+  | Missing -> ()
+  | _ -> 
+    printfn """
+    Usage:
+      --help Show this message
+      --binding="tcp://127.0.0.1:502" Binding for Server and Client
+      --run-server Runs the Server Component
+      --run-randomizer Runs the Server Randomizer Component (not much use without the server component)
+      --run-client Runs the Client Component
+    """
+    System.Environment.Exit(0)
+
+  let serverConf = 
+    argParser "binding" 
+    |> function 
+       | Value x ->
+         x |> (ModbusTypes.ModbusServerConf.TryParse >> Result.ToOption >> Option.get)
+       | _ -> {
+           Port = 5502u
+           IPAddress = Net.IPAddress.Parse("127.0.0.1")
+         }
+
+  let runServer = 
+    argParser "run-server" |> ParsedArg.flagOnly
+
+  let runClient = 
+    argParser "run-client" |> ParsedArg.flagOnly
+
+  let runRandomizers = 
+    argParser "run-randomizer" |> ParsedArg.flagOnly
 
   // create the datastore
   let mutable dis = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
@@ -127,8 +178,6 @@ let main argv =
         } |> Ok
     r
 
-  // pull out the conf
-  let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
   let logger = 
     LoggerFactory.Create(fun o -> 
       o.AddConsole() |> ignore
@@ -137,8 +186,8 @@ let main argv =
 
   let clientConf = 
     {
-      Server = conf.IPAddress |> IPAddress'
-      Port = conf.Port
+      Server = serverConf.IPAddress |> IPAddress'
+      Port = serverConf.Port
       SlaveId = 1
     }
 
@@ -192,15 +241,24 @@ let main argv =
         logger.LogWarning("client issue")
     } |> Async.ForeverServer // if it fails, start over
 
-  // build the hopac server
-  [|
-    Modbus.Server.build logger conf (actionFunc 1us)
-    iregRandomizer
-    iRandomizer
-    iReader
-    hReader
-    diReader
-  |] 
+  let jobs = 
+    match runServer with 
+    | true -> [Modbus.Server.build logger serverConf (actionFunc 1us)]
+    | _ -> []
+
+  let jobs = 
+    match runRandomizers with
+    | true ->
+      iregRandomizer :: iRandomizer :: jobs
+    | _ -> jobs
+
+  let jobs = 
+    match runClient with 
+    | true -> 
+      iReader :: hReader :: diReader :: jobs
+    | _ -> jobs 
+
+  jobs 
   |> Async.Parallel
   |> Async.RunSynchronously
   |> ignore
