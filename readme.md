@@ -1,9 +1,39 @@
 # Introduction
-I did not like the available modbus libraries, i figured 'how hard can
-it be?' so i've decided to write it using fsharp and dotnet core
+.Net Core Modbus library written in FSharp
 
-This has been developed on x86_64 Ubuntu, it should run on anything with 
-a NIC and can run the dotnetcore 2.2 run time (so ARM, x86), (Windows, Raspbian..)
+There's an example program with a few options
+
+There's a dockerfile for running the example server
+
+# Quickstart
+The quick start section is broken into a 'Source' and a 'Docker' section
+
+Read the source section if you're working with the library or playing with the example project
+
+## Source
+The interface is fairly straight forward refer to the example program to see how to use this library
+
+The example program can be run with the following flags which will alter which components are run:
+- --run-server: this runs the server component
+- --run-client: this runs the client component
+- --run-randomizer: this runs the randomizer component (dummy data presented by the server for read-only function codes)
+- --binding=tcp://0.0.0.0:5502: the tcp port and interface you want to bind to (or connect to for the client)
+
+## Docker 
+The docker image is of the example project. As mentioned in the source section, there are a number of switches for various behaviour.
+
+The docker image is configured to use the server and randomizer components only.
+
+Thus to get going use something like
+
+`
+docker run -d --name myrandmodserver -p 502:5502 bradleyp81docker/modbus_tcp_test_server:latest
+`
+
+If you do not want to run the randomizer, you could use something like:
+`
+docker run -d --name mymodserver -p 502:5502 bradleyp81docker/modbus_tcp_test_server:latest dotnet /app/FsModbus.Example.dll --run-server --binding=tcp://0.0.0.0:5502
+`
 
 ## Project Status
 ### Server
@@ -17,170 +47,14 @@ The following has been implemented and is working
 - FC 16, Write multiple holding registers 
 
 ### Client
-- FC 1, Tested and confirmed working
-- FC 6, Tested and confirmed working
+- FC 1, Tested and confirmed 
+- FC 6, Tested and confirmed
+- FC 2, Tested and confirmed
+- FC 3, Tested and confirmed
+- FC 5, Tested and confirmed
+- FC 15, Tested and confirmed
+- FC 16, Tested and confirmed 
 
-There is no test coverage of the other function codes, best to assume nothing else is working.
-
-## Usage
-### Server
-(there is an example project in the git)
-```fsharp
-// Learn more about F# at http://fsharp.org
-
-open Hopac
-open Hopac.Infixes
-open ModbusTypes
-open System
-open GracefulShutdown
-open FsLoggingTypes
-
-[<EntryPoint>]
-let main argv =
-
-  let conf =
-    argv
-    |> Seq.tryFind (fun x -> x.ToLower().Contains("binding"))
-    |> Option.map (fun x -> x.Split('=') |> Seq.last)
-    |> Option.defaultValue "tcp://127.0.0.1:5502"
-    |> ModbusTypes.ModbusServerConf.TryParse
-  
-  // create the datastore
-  let mutable dis = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
-  let mutable dos = [0..100] |> List.map(fun x -> x, false) |> Map.ofList
-  let mutable hReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
-  let mutable iReg = [0..100] |> List.map(fun x -> x, 0us) |> Map.ofList
-
-  // create the delegates that read and write to the datastore (or just pass-through)
-  let readHRegFunc (x : ReqOffQuant) : ResRegs =
-    let b = x.Address |> int
-    let c = x.Quantity |> int
-    let e = b + c - 1
-    let values : UInt16 list = [b..e] |> List.map (fun x -> Map.find x hReg )
-    {
-      Values = values
-    }
-
-  let writeRegFunc (x : WriteRegRequest) : WriteRegResponse =
-    let o = x.Address |> int
-
-    hReg
-    |> Map.add o x.Value
-    |> fun y -> hReg <- y
-
-    {
-      Address = x.Address
-      Value = hReg |> Map.find o
-    }
-
-  let writeRegsFunc (x : WriteRegsRequest) : ResOffQuant =
-     let o = x.Address |> int
-     let c = x.Values |> List.length
-     let vals = x.Values
-     [0..(c-1)]
-     |> List.map(fun x -> hReg |> Map.add (o + x) (vals |> List.item x) |> fun x -> hReg <- x)
-     |> ignore
-     {
-       Quantity = c |> uint16
-       Address = x.Address
-     }
-
-  let readDOFunc (x : ReqOffQuant) : ResBools =
-    let offset = x.Address |> int
-    let count = x.Quantity |> int
-    let ``end`` = offset + count - 1
-    let values : bool list = [offset..``end``] |> List.map (fun x -> Map.find x dos)
-    {
-      Status = values
-    }
-
-  let writeDOFunc (x : WriteDoRequest) : WriteDoResponse =
-    let start = x.Address |> int
-    dos
-    |> Map.add start x.Value
-    |> fun x -> dos <- x
-    {
-      Address = x.Address
-      Value = dos |> Map.find start
-    }
-
-  let writeDOsFunc (x : WriteDosRequest) : ResOffQuant =
-    let offset = x.Address |> int
-    let qty = x.Values |> List.length
-    let vals = x.Values
-    [0..(qty-1)]
-    |> List.map(fun x -> dos |> Map.add (offset + x) (vals |> List.item x) |> fun x -> dos <- x) // hacky!
-    |> ignore
-    {
-      Address = x.Address
-      Quantity = qty |> uint16
-    }
-
-  // create the 'rtu action func' which takes the RtuRequest and returns the RtuResponse
-  let actionFunc : ModFunc =
-    let r (req : RtuRequest) : RtuResponse =
-      match req with
-      | ReadDOReq x -> readDOFunc x |> ReadDORes
-      | ReadDIReq x -> ModFunc.Default.Success.readDIFunc x
-      | ReadHRegReq x -> readHRegFunc x |> ReadHRegRes
-      | ReadIRegReq x -> ModFunc.Default.Success.readIRegFunc x
-      | WriteDOReq x -> writeDOFunc x |> WriteDORes
-      | WriteRegReq x -> writeRegFunc x |> WriteRegRes
-      | WriteDOsReq x -> writeDOsFunc x |> WriteDOsRes
-      | WriteRegsReq x -> writeRegsFunc x |> WriteRegsRes
-    r
-
-  // wrap up the action func in the MabpFunc, this takes the MBapRequest and returns the MBapResponse
-  let actionFunc : MbapFunc =
-    let r (req : MbapReq ) : Result<MbapRes, unit> =
-      match req.UnitIdentifier with
-      | 0uy ->
-        // we're only interested in one unit, which is '0',
-        // although we can have as many units as we want
-        let res =
-          req.Request
-          |> actionFunc
-
-        {
-          TransactionIdentifier = req.TransactionIdentifier
-          ProtocolIdentifier = req.ProtocolIdentifier
-          UnitIdentifier = req.UnitIdentifier
-          Response = res
-        } |> Ok
-      | _ -> () |> Error
-    r
-
-  // build the graceful shutdown alternative
-  let gracefulShutdown = GracefulShutdown.Build()
-
-  // pull out the conf
-  let conf = conf |> function | Ok conf -> conf | _ -> exn "invalid conf" |> raise
-  
-  // build the console logger for the logger
-  let consoleLogger = FsLogging.ConsoleEndpoint.build () |> Hopac.run
-  
-  // create a new logger and attach the console logger to it
-  let logger =
-    Logger.New()
-    |> Logger.Add "verboseConsole" consoleLogger
-
-  // build the hopac server
-  let server = Modbus.Server.build logger conf actionFunc
-  
-  // run the server, it should block until one of the alts is committed to
-  job {
-    do! Alt.choose [
-      gracefulShutdown.Alt
-      server
-    ]
-  } |> Hopac.run
-
-  // if the previously blocked job is over, make sure the gracefulShutdown is finished, so the application exits
-  gracefulShutdown.Finished()
-  0
-
-
-```
 
 ## Testing Status
 A heap of utility functions were written to assist with all of the bit,
@@ -200,8 +74,6 @@ The client is tested against the server for complete round-trip testing.
 
 A nice feature of the code, is the user of the server has two write their own delegate actions for each of the function codes. Consequently, when initializing the server we provide our own functions, this means that we have access to the mutable store that is used by the server.
 
-This hasn't been used yet, in the client testing, but it's certainly handy.
-
 ## Philosophy / Design decisions
 It can get a bit confusing, getting one's head around byte orders,
 what i have adopted in my code is, the head of the list should be the
@@ -216,4 +88,4 @@ What is important is making the decision and sticking with it
 - write a client interface
 - add tests for
   - and exception handling
-- add round-trip testing
+- get the testing working again (remove hopac etc)
